@@ -9,21 +9,35 @@ uses
   SysUtils;
 
 type
+  nibble = 0..15;
   chipstack = array[byte] of word;
   byte2 = array[0..1] of byte;
   byte4 = array[0..3] of byte;
   wordp = ^word;
   word2 = array[0..1] of word;
   word4 = array[0..3] of word;
-  nibble = 0..15;
+  str5  = string[5];
+  atrOps= array[nibble] of str5;
   ProcArr= array[nibble]  of procedure;
+  OpCodes = (
+      jumpOp,  xrOp,    pushOp,  SDivOp,
+      retOp,   xaOp,    popOp,   PMulOp,
+      _ifOp,   DUPOp,   rstpOp,  nandOp,
+      ifmOp,   JOp,     rldpOp,  a2dOp
+      );
 
 const
   min2 = $fffe;
   wAnd:  word4 = (0,$e,$fe, $ffe);
   wOr:   word4 = (0,$fff0,$ff00, $f000);
   wTest: word4 = (0,$8,$80, $800);
-  
+  opNames : atrOps = (
+    '(JMP', 'XR',  'PUSH', '-/',
+    '(;',   'XA',  'POP',  '+*',
+    '(IF',  'DUP', '!R+',  'NAND',
+    '(IF-', 'J',   '@R+',  '+2/'
+    );
+
 var
   pc, pcWord, rtop, areg: word;
   dnext, dtop, wtemp: word; {, here, dict}
