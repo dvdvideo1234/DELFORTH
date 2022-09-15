@@ -11,173 +11,200 @@ uses
 type
   chipstack = array[byte] of word;
   byte2 = array[0..1] of byte;
+  byte4 = array[0..3] of byte;
+  wordp = ^word;
+  word2 = array[0..1] of word;
   word4 = array[0..3] of word;
   nibble = 0..15;
+  ProcArr= array[nibble]  of procedure;
 
 const
   min2 = $fffe;
-  wand:  word4 = (0,$e,$fe, $ffe);
-  wor:   word4 = (0,$fff0,$ff00, $f000);
-  wtest: word4 = (0,$8,$80, $800);
+  wAnd:  word4 = (0,$e,$fe, $ffe);
+  wOr:   word4 = (0,$fff0,$ff00, $f000);
+  wTest: word4 = (0,$8,$80, $800);
+  
 var
-  pc, pcWord, wdata, areg: word;
+  pc, pcWord, rtop, areg: word;
+  dnext, dtop, wtemp: word; {, here, dict}
+  ldtop: longint;
+  tempw2: word2;
   rsp, dsp, nibNum: byte;
-  n02, n13: byte2;
-  {n3, n2, n1, n0: nibble;}
+  f, xflag:  boolean;
   rstack, dstack: chipstack;
-  adrSpc: array[0..32767] of word ;
+  adrSpc: array[word] of byte ;
+
+  procedure bye;  begin   halt;  end;
+
+  procedure byeEmul;  begin   xflag := true;  end;
+
+  function _deek(a: word): word;
+  begin    _deek := adrSpc[a] + adrSpc[a+1] shl 8;  end;
+
+  procedure _doke(a: word; d: word);
+  begin    adrSpc[a]   := d;    adrSpc[a+1] := d shr 8;  end;
 
   function  _drop: word;
   begin
-    _drop := dstack[dsp];
+    _drop := dtop;
+    dtop  := dnext;
+    dnext := dstack[dsp];
     inc(dsp);
   end;
 
   procedure  _dup(data: word);
   begin
     dec(dsp);
-    dstack[dsp] := data;
+    dstack[dsp] :=  dnext;
+    dnext       :=  dtop;
+    dtop        :=  data;
   end;
+
+  procedure emit;  begin  write(char(_drop));  end;
+
+  procedure key;  var c: char;  begin read(c); _dup(byte(c));  end;
 
   function  _pop: word;
   begin
-    _pop := rstack[rsp];
+    _pop := rtop;
+    rtop := rstack[rsp];
     inc(rsp);
   end;
 
   procedure  _push(adr: word);
   begin
     dec(rsp);
-    rstack[rsp] := adr;
-  end;
-
-  function  wFetch(var adr: word): word ;
-  begin
-    wFetch := adrspc[adr shr 1];
-    inc(adr,2);
-  end;
-
-  procedure  wStore(var adr: word; what: word);
-  begin
-    adrspc[adr shr 1] := what ;
-    inc(adr,2);
-  end;
-
-  procedure  _fetch;
-  var temp: word;
-  begin
-    pcWord :=  wFetch(pc);
-    n02 := byte2(pcWord and $f0f);
-    pcWord := pcWord and min2; 
-    temp := pcWord shr 4;
-    n13 := byte2(temp and $f0f);
+    rstack[rsp] := rtop;
+    rtop := adr;
   end;
 
 {
 ; (JUMP (; (IF (IF-   CONTROLS
 }
-  procedure  fRET;
+  procedure  RET;
   begin
-    _pop;
-    pc := wdata and min2;
+    if  nibNum = 3 then begin
+      if byte2(pcWord)[1] = $4c then begin  {escape codes 128}
+      end;
+    end;
+    pc := _pop and min2;
   end;
 
-  procedure  fjump;
+  procedure  jump;
   begin
     if nibNum = 0 then exit;
     if (wtest[nibNum] and pcWord) = 0
-      then begin pc := pc + (pcWord and wand[nibNum]); exit; end;
-    pcWord := pcWord or wor[nibNum];
-    if pcWord <> min2 then begin  pc := pc + pcWord; exit; end;
+      then pcWord := pcWord and wand[nibNum]
+      else pcWord := pcWord or wor[nibNum];
+    pc := pc + pcWord;
   end;
 
-  procedure  fif;
-  begin  _drop;
-    if wdata <> 0 then exit;
-    fjump;
-  end;
-
-  procedure  fifm;
+  procedure  _if;
   begin
-    dec(dstack[dsp]);
-    if shortint(dstack[dsp]) < 0 then exit;
-    fjump;
+    if _drop <> 0 then exit;
+    jump;
+  end;
+
+  procedure  ifm;
+  begin
+    dec(dtop);
+    if shortint(dtop) < 0 then exit;
+    jump;
   end;
 
 {
 ; !R+ @R+ xR XA       TRANSFER
 }
-  procedure  frstp;
-  begin   wStore(rstack[rsp], _drop);  end;
+  procedure  rstp;  begin  _doke(rtop, _drop); inc(rtop,2) end;
 
-  procedure  frldp;
-  begin   _dup( wFetch(rstack[rsp]));  end;
+  procedure  rldp;  begin   _dup(_Deek(rtop)); inc(rtop,2) end;
 
-  procedure  fxr;
-  begin
-    wdata := rstack[rsp];
-    rstack[rsp] := dstack[dsp];
-    dstack[dsp] := wdata;
+  procedure  xr;
+  begin  wtemp := rtop;     rtop := dtop; dtop := wtemp;
   end;
 
-  procedure  fxa;
-  begin
-    wdata := rstack[rsp];
-    rstack[rsp] := areg;
-    areg := wdata;
+  procedure  xa;
+  begin  wtemp := rtop;     rtop := areg; areg := wtemp;
   end;
 
 {
 ; push pop J DUP      STACK
 }
-  procedure  fpush;   begin    _push(_drop);  end;
+  procedure  push;   begin    _push(_drop);  end;
 
-  procedure  fj;      begin  _dup(rstack[byte(rsp+1)]);  end;
+  procedure  j;      begin  _dup(rstack[rsp]);  end;
 
-  procedure  fdup;    begin  _dup(dstack[byte(dsp)]);  end;
+  procedure  dup;    begin  _dup(dtop);  end;
 
-  procedure  fpop;    begin   _dup(_pop);  end;
+  procedure  pop;    begin   _dup(_pop);  end;
 
 {
 ; NAND +2/ +* -/      MATH & LOGIC
 }
-  procedure  fnand;
-  begin  wdata := _drop;
-    dstack[dsp] := not (wdata and dstack[dsp]);
+  procedure  nand;
+  begin
+    dnext := not (dtop and dnext);
+    _drop;
   end;
 
-  procedure  fadd2div;
-  var temp: longint;
-  begin  wdata := _drop;
-    temp := wdata + dstack[dsp];
-    dstack[dsp] := temp;
-    _dup(temp div 2);
+  procedure  add2div;
+  begin
+    ldtop := dtop + dnext;
+    dnext := ldtop;
+    dtop := (ldtop div 2);
   end;
 
-  procedure  fPMul;
-  var temp: longint;  f: boolean;
-  begin   temp := _drop;
-    if odd(dstack[dsp]) then   inc(temp, areg);
-    f := odd(temp shr 16);
-    temp := ((temp shl 16) + dstack[dsp]) shr 1;
-    dstack[dsp] := temp;
-    _dup((temp shr 16) or word(ord(f) shl 15));
+  procedure  PMul;
+  begin   ldtop := dtop;
+    if odd(dnext)
+      then   inc(ldtop, areg);
+    f := odd(ldtop shr 16);
+    ldtop := ((ldtop shl 16) or dnext) shr 1;
+    dnext := ldtop;
+    dtop := ((ldtop shr 16) or word(ord(f) shl 15));
   end;
 
-  procedure  fSDiv;
-  var temp: longint;  f: boolean;
-  begin  wdata := _drop;   f := wdata >= areg;
-    if f then   dec(wdata, areg);
-    temp := ((wdata shl 16) + dstack[dsp]) shl 1;
-    wdata := (temp shr 16) ;
-    dstack[dsp] := temp;
-    if f then inc(dstack[dsp]);
-    _dup(wdata);
+  procedure  SDiv;
+  begin
+    f := dtop >= areg;
+    if f
+      then   dec(dtop, areg);
+    ldtop := ((dtop shl 16) or  dnext) shl 1;
+    dtop := (ldtop shr 16) ;
+    dnext := ldtop;
+    if f
+      then inc(dnext);
   end;
+
+  const
+    OpArr: procArr =
+      (
+      jump,  xr,    push,  SDiv,
+      ret,   xa,    pop,   PMul,
+      _if,   DUP,   rstp,  nand,
+      ifm,   J,     rldp,  add2div
+      );
+
+
 
   procedure l4emul(adr: word);
+  label nextCell;
   begin
-    pc := adr and min2;
+    pc := adr and min2;  xflag := false;
+  repeat   nextCell: pcWord :=  _Deek(pc); inc(pc,2);
+    if not odd(pcWord) then begin  {nesting}
+      _push(pc); pc :=  pcWord;    {goto nextCell;}
+      continue;
+    end;
+    tempw2[0] := pcWord and min2;
+    nibNum := 3; {unpack cell to opcodes}
+    repeat tempw2[1] := 0;
+      longint(tempw2) := longint(tempw2) shl 4;
+      OpArr[tempw2[1]];  {execute opcode}
+      if tempw2[1] and 3 = 0    then goto  nextCell;
+      dec(nibNum);
+    until nibNum > 3;
+  until xflag;
   end;
   
 
