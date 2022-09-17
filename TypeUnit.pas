@@ -3,7 +3,6 @@ unit TypeUnit;
 interface
 
 type
-  //nibble = 0..15;
   chipstack = array[byte] of word;
   byte2 = array[0..1] of byte;
   byte4 = array[0..3] of byte;

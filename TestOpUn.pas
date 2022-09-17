@@ -216,8 +216,10 @@ var
   begin   getStack(PMulOp);  _dup($fff1);  _dup( 0); areg := $ff16;
     longint(shifter) := longint(shiftreg);
     fa := odd(shifter[0]); if fa then fa := _incw(shifter[1], areg);
-    shifter[1]  := shifter[0] shr 1;   if fa then inc(shifter[1],$8000);
-    PMul;    TestOp(longint(shifter) <> longint(shiftreg));
+    longint(shifter)   := longint(shifter)  shr 1;
+    if fa then inc(shifter[1],$8000);
+    PMul;
+    TestOp(longint(shifter) <> longint(shiftreg));
     PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;
     shifter[0] := $fff1;
     shifter[1] := $ff16;
@@ -227,19 +229,26 @@ var
   end;
 
   procedure TestSDiv;
-  var shifter: word2;  temp, temp2: word; fa: boolean;
-  begin
-  {  getStack(SDivOp);    _dup($fff4); _dup( $16);
-    temp := (dtop + dnext);  longint(tempw2) := longint(dtop + dnext) shr 1;
-    SDiv;    TestOp((dnext <> wtemp) or (dtop <> tempw2[0]));
+  var shifter: word2;   fa: boolean;
+  begin getStack(SDivOp);    _dup($fff4); _dup($b); areg := ( $16);
+    longint(shifter) := longint(shiftreg)   shl 1;
+    if shifter[1] >= areg then begin  _incw(shifter[1], (not areg) + 1);
+      inc(shifter[0]);
+    end;
+    SDiv;    TestOp(longint(shifter) <> longint(shiftreg));
+    SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;
+    longint(shifter) := $bfff4 div areg;    shifter[1] := $bfff4 mod areg;
+    TestOp(longint(shifter) <> longint(shiftreg));
     _drop;    _drop;
     TestStack;
-  }
   end;
 
-  procedure TestFindPrim;
-  begin
-
+  procedure TestFindPrim;  var i: OpCodes;
+  begin    getStack(SDivOp); nibNum := 250;
+    for i := jumpOp to nandOp do
+      TestOp(FindPrim(opNames[i]) <> shortint(i));
+    TestOp(FindPrim('Op') >= 0);
+    TestStack;
   end;
 
   procedure TestAllOps;

@@ -5,6 +5,7 @@ uses
   TypeUnit;
 
 const
+  nibble = 4;
   min2 = $fffe;
 
   opNames : atrOps = (

@@ -2,10 +2,11 @@ unit PrimUnit;
 
 interface
 
+  function  _wswap(var s, d: word): word;  
   function  _incw(var acc: word; w: word): boolean;
-  function  _RelAdr(cell: word; nib: byte): word;
   function  _deek(a: word): word;
   procedure _doke(a: word; d: word);
+  function  _RelAdr(cell: word; nib: byte): word;
   function  _drop: word;
   procedure _dup(data: word);
   function  _pop: word;
@@ -44,6 +45,27 @@ uses
     rcl al,1
   end;
 
+  function _deek(a: word): word;  asm
+    xor eax,eax
+    mov ax,a
+    mov ax,word ptr adrSpc[eax]
+  end;
+
+  procedure _doke(a: word; d: word);  asm
+    xor eax,eax
+    mov dx,d
+    mov ax,a
+    mov word ptr adrSpc[eax],dx
+  end;
+
+  function _wswap(var s, d: word): word;  asm
+    mov   edx,d
+    mov   ecx,s
+    mov   ax,[ecx]
+    xchg  ax,[edx]
+    xchg  ax,[ecx]
+  end;
+
   function  FindPrim(wrd: string): shortint;
   var
     i: OpCodes;
@@ -56,16 +78,9 @@ uses
     FindPrim := -1;
   end;
 
-  function _deek(a: word): word;
-  begin    _deek := adrSpc[a] + adrSpc[a+1] shl 8;  end;
-
-  procedure _doke(a: word; d: word);
-  begin    adrSpc[a]   := d;    adrSpc[a+1] := d shr 8;  end;
-
   function  _drop: word;
   begin
-    _drop := shiftreg[1];
-    shiftreg[1]  := shiftreg[0];
+    _drop := _wswap(shiftreg[1], shiftreg[0]);
     shiftreg[0] := dstack[dsp];
     inc(dsp);
   end;
@@ -73,8 +88,7 @@ uses
   procedure  _dup(data: word);
   begin
     dec(dsp);
-    dstack[dsp] :=  shiftreg[0];
-    shiftreg[0] :=  shiftreg[1];
+    dstack[dsp] := _wswap(shiftreg[0], shiftreg[1]);
     shiftreg[1] :=  data;
   end;
 
@@ -134,15 +148,9 @@ uses
 
   procedure  rldp;  begin   _dup(_Deek(rtop)); inc(rtop,2) end;
 
-  procedure  xr;
-  var temp: word;
-  begin  temp := rtop;     rtop := shiftreg[1]; shiftreg[1] := temp;
-  end;
+  procedure  xr;  begin  _wswap(rtop, shiftreg[1]);  end;
 
-  procedure  xa;
-  var temp: word;
-  begin  temp := rtop;     rtop := areg; areg := temp;
-  end;
+  procedure  xa;  begin  _wswap(rtop, areg);  end;
 
 {
 ; push pop J DUP      STACK
@@ -181,11 +189,10 @@ uses
   end;
 
   procedure  SDiv;
-  var fa: boolean;
-  begin fa := shiftreg[1] >= areg;
-    if fa then   _incw(shiftreg[1], (not areg) + 1);
-    longint(shiftreg) := longint(shiftreg)  shl 1;
-    if fa then inc(shiftreg[0]);
+  begin    longint(shiftreg) := longint(shiftreg)  shl 1;
+    if shiftreg[1] >= areg then begin      _incw(shiftreg[1], succ(not areg));
+      inc(shiftreg[0]);
+    end;
   end;
 
 end.
