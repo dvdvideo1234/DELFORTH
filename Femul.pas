@@ -32,23 +32,22 @@ uses
 
   const
     ExtendedOps : ProcArr = (
-      bye,  StopEmul, emit, key,  nvld, nvld, nvld, nvld,
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld,
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld,
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld,
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld,
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld,
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld,
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld,
-
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld,
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld,
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld,
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld,
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld,
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld,
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld,
-      nvld, nvld, nvld, nvld, nvld, nvld, nvld, nvld
+      @bye,  @StopEmul, @emit, @key,  @nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld,
+      @nvld, @nvld, @nvld, @nvld,@nvld, @nvld, @nvld, @nvld
     );
 
   procedure  RET;
@@ -65,10 +64,10 @@ uses
   const
     OpArr: OpArray =
       (
-      jump,  xr,    push,  SDiv,
-      ret,   xa,    pop,   PMul,
-      _if,   DUP,   rstp,  add2div,
-      ifm,   J,     rldp,  nand
+      @jump,  @xr,    @push,  @SDiv,
+      @ret,   @xa,    @pop,   @PMul,
+      @_if,   @DUP,   @rstp,  @add2div,
+      @ifm,   @J,     @rldp,  @nand
       );
 
 
