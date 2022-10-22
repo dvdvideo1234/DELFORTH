@@ -10,9 +10,7 @@ implementation
 uses
   SysUtils,
   TypeUnit,
-  ConstUnit,
-  VarUnit,
-  PrimUnit
+  VarUnit
   ;
 
   procedure bye;  begin   halt;  end;

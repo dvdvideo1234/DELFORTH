@@ -36,37 +36,6 @@ uses
   VarUnit
   ;
 
-{$asmMode intel}
-  function  _incw(var acc: word; w: word): boolean;  begin
-  asm
-    mov eax,acc ;
-    mov dx,w
-    add [eax],dx
-    mov al,0
-    rcl al,1
-  end; end;
-
-  function _deek(a: word): word;  begin asm
-    xor eax,eax
-    mov ax,a
-    mov ax,word ptr adrSpc[eax]
-  end; end;
-
-  procedure _doke(a: word; d: word);  begin asm
-    xor eax,eax
-    mov dx,d
-    mov ax,a
-    mov word ptr adrSpc[eax],dx
-  end; end;
-
-  function _wswap(var s, d: word): word;  begin asm
-    mov   edx,d
-    mov   ecx,s
-    mov   ax,[ecx]
-    xchg  ax,[edx]
-    xchg  ax,[ecx]
-  end; end;
-
   function  FindPrim(wrd: string): shortint;
   var
     i: OpCodes;
@@ -78,6 +47,24 @@ uses
       end;
     FindPrim := -1;
   end;
+
+  {$asmMode intel}
+  function  _incw(var acc: word; w: word): boolean; begin
+  asm
+    mov eax,acc ;
+    mov dx,w
+    add [eax],dx
+    mov al,0
+    rcl al,1
+  end; end;
+
+  function _wswap(var s, d: word): word;  begin asm
+    mov   edx,d
+    mov   ecx,s
+    mov   ax,[ecx]
+    xchg  ax,[edx]
+    xchg  ax,[ecx]
+  end; end;
 
   function  _drop: word;
   begin
