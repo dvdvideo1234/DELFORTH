@@ -25,7 +25,7 @@ const
     );
 
 type
-
+  objP = tobject;
   OpArray=  array of TProcType;
 
   t4thCPU = class (tMemory)

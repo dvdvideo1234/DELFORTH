@@ -30,6 +30,16 @@ type
     function  pop: word;
   end;
 
+  tAbstractMemory = class
+    private
+      FMemory: Pointer;
+      FSize  : PtrInt;
+    protected
+      Function GetSize : LongInt; virtual; Abstract;
+      procedure SetPointer(Ptr: Pointer; ASize: PtrInt); virtual; Abstract;
+    public
+      property Memory: Pointer read FMemory;
+    end;
 
   tMemory = class
     pcReg : word;
@@ -174,56 +184,5 @@ implementation
   end;
 
 end.
-
-{
-  Procedure tRegister.incr;
-  begin
-    inc(fRegister);
-  end;
-
-  Procedure tRegister.decr;
-  begin
-    dec(fRegister);
-  end;
-
-  function  tRegister.adrs: pointer;
-  begin
-    result :=addr(fRegister);
-  end;
-
-  Procedure tRegister.add(value: integer);
-  begin
-    inc(fRegister, Value);
-  end;
-}
-
-{
-tRegister = object
-  fRegister: word;
-  Procedure incr;
-  Procedure decr;
-  Procedure add(value: integer);
-  function  adrs: pointer;
-end;
-
-tByteRegister = object
-  fRegister: word;
-  Procedure incr;
-  Procedure decr;
-  Procedure add(value: integer);
-  function  adrs: pointer;
-end;
-
-tAbstractMemory = class
-  private
-    FMemory: Pointer;
-    FSize  : PtrInt;
-  protected
-    Function GetSize : LongInt; virtual; Abstract;
-    procedure SetPointer(Ptr: Pointer; ASize: PtrInt); virtual; Abstract;
-  public
-    property Memory: Pointer read FMemory;
-  end;
-}
 
 
