@@ -25,6 +25,7 @@ type
   function  DigToChar(n: byte): char;
   function  WordTohex(n: word): str7;
   function  divmod(var w: dword; d: dword): dword;
+  function  Avg(a, b: Longint): Longint;
 
   function  drcRw(var s, d: word; cr: boolean = false): boolean;
   function  drcLw(var s, d: word; cr: boolean = false): boolean;
@@ -38,35 +39,46 @@ implementation
   end;
 
   {$asmMode intel}
-  function  incw(var acc: word; w: word): boolean;  begin
+  function  incw(var acc: word; w: word): boolean;assembler; nostackframe;
   asm
-    mov eax,acc ;
-    mov dx,w
     add [eax],dx
     mov al,0
     rcl al,1
-  end; end;
+  end;
 
-  function  drcRw(var s, d: word; cr: boolean): boolean;  begin asm
-    mov   edx,d
-    mov   ecx,s
-    mov   al,cr
+  function  drcRw(var s,d:word; cr: boolean): boolean;assembler; nostackframe;
+  asm
+    xchg  ecx,eax
     shr   al,1
     rcr   word ptr [ecx],1
     rcr   word ptr [edx],1
-    rcl al,1
-  end; end;
+    rcl   al,1
+  end;
 
-  function  drcLw(var s, d: word; cr: boolean): boolean;  begin asm
-    mov   edx,d
-    mov   ecx,s
-    mov   al,cr
+  function  drcLw(var s,d: word; cr:boolean): boolean;assembler; nostackframe;
+  asm
+    xchg  ecx,eax
     shr   al,1
     rcl   word ptr [ecx],1
     rcl   word ptr [edx],1
-    rcl al,1
-  end; end;
+    rcl   al,1
+  end;
 
+  function Avg(a, b: Longint): Longint; assembler; nostackframe;
+  asm
+    add   eax,edx
+    rcr   eax,1
+  end;
+
+{
+function Avg(a, b: Longint): Longint;
+begin
+  if a < b then
+    Result := a + ((b - a) shr 1)
+  else
+    Result := b + ((a - b) shr 1);
+end;
+}
   function  NToStr(n: longint): str15;
   begin result := '';
     if n < 0 then begin n := -n; result := '-'; end;

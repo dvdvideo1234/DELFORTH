@@ -13,9 +13,14 @@ const
 
 type
   pword = ^word;
+  {ttstr = tstrings;
+  tfilestreem = tstrings;
+  TBytesStream }
   pstr  = ^shortstring;
   str5  = string[5];
   stkAry= array[byte] of word;
+  bary = array[word] of byte;
+  ppb = ppbyte;
 
   TProcType = procedure() of object; // Method type
   FuncType = function(): pword of object;
@@ -30,83 +35,160 @@ type
     function  pop: word;
   end;
 
-  tAbstractMemory = class
+  tAbstractMemoryPointer = object
     private
       FMemory: Pointer;
-      FSize  : PtrInt;
+      function  getItem(index: word): byte;
+      procedure putItem(index: word; b: byte);
     protected
-      Function GetSize : LongInt; virtual; Abstract;
-      procedure SetPointer(Ptr: Pointer; ASize: PtrInt); virtual; Abstract;
+      procedure SetPointer(Ptr: Pointer);
     public
-      property Memory: Pointer read FMemory;
+      property mem[index: word]: byte read getItem write putItem;
     end;
 
-  tMemory = class
-    pcReg : word;
-    lastw : word;
-    fshift: dword;
-    nibNum: byte;
-    tReg  : word;
-    hReg  : word;
-    bytes : array of byte;
-
-    function  getNibble: byte;
-    function  RelAdr: word;
-
+  TwordPointer = object(tAbstractMemoryPointer)
+    ptr: word;
     Procedure store(adr, w: word);
     function  fetch(adr: word): word;
-    Procedure nextWord;
-    procedure stp(b: byte);
-    procedure bcomp(b: byte);
-    procedure wcomp(w: word);
+  end;
+
+  TNibblesPointer = object(TwordPointer)
+    last : word;
+    shift: dword;
+    nib: byte;
+  end;
+
+  TpcReg = object(TNibblesPointer)
+    function  getNibble: byte;
+    function  RelAdr: word;
+    function  nextWord: boolean;
+  end;
+
+  TDictReg = object(TwordPointer)
+    procedure pstbyte(b: byte);
+    procedure pstWord(w: word);
     function  FindWord(where: word; wrd: shortstring): word;
     procedure defWord(code: word; name: shortstring);
+  end;
+
+  TCompReg = object(TNibblesPointer)
+    Procedure PutNibble(n: byte);
+    Procedure PutRelAdr(rl: word);
+    procedure bcomp(b: byte);
+    procedure wcomp(w: word);
+  end;
+
+  t4thMemory = class
+    p  : TpcReg;
+    t  : TDictReg;
+    h  : TCompReg;
+    fMemory : TBytesStream;
 
     procedure initPc(adr: word);
-    constructor create(memSize: word);
+
+    constructor create(memSize: LongInt);
     destructor Done;
 
-    property pc  : word read pcReg write initPc;
-    property dict: word read tReg  write tReg;
-    property here: word read hReg  write hReg;
+    property pc  : word read p.ptr write initPc;
+    property dict: word read t.ptr  write t.ptr;
+    property here: word read h.ptr  write h.ptr;
+    property mem: TBytesStream read fMemory;
 
   end;
 
 
 implementation
 
-  procedure tMemory.bcomp(b: byte);
+  {t4thMemory}
+  constructor t4thMemory.create(memSize: LongInt);
   begin
-    bytes[hReg] := b;
-    inc(hReg);
+    fMemory := TBytesStream.Create;
+    fMemory.SetSize(memSize);
+    fMemory.Clear;
+
+    p.SetPointer(fMemory.Memory);
+    t.SetPointer(fMemory.Memory);
+    h.SetPointer(fMemory.Memory);
   end;
 
-  procedure tMemory.wcomp(w: word);
+  destructor t4thMemory.Done;
+  begin
+    fMemory.Destroy;
+  end;
+
+  procedure t4thMemory.initPc(adr: word);
+  begin
+    p.ptr := adr and min2;
+    p.nib:= 0;
+  end;
+
+
+  {tAbstractMemoryPointer}
+  procedure tAbstractMemoryPointer.SetPointer(Ptr: Pointer);
+  begin
+    FMemory := ptr;
+  end;
+
+  function  tAbstractMemoryPointer.getItem(index: word): byte;
+  begin
+    //FMemory := ptr;
+  end;
+
+  procedure tAbstractMemoryPointer.putItem(index: word; b: byte);
+  begin
+    //FMemory := ptr;
+  end;
+
+
+  {TCompReg}
+  procedure TCompReg.bcomp(b: byte);
+  begin
+    TBytesStream(memory).bytes[ptr] := b;
+    inc(ptr);
+  end;
+
+  procedure TCompReg.wcomp(w: word);
   begin
     bcomp(wordrec(w).Lo);
     bcomp(wordrec(w).Hi);
   end;
 
-  procedure tMemory.defWord(code: word; name: shortstring);
+  Procedure TCompReg.PutNibble(n: byte);
+  begin
+
+  end;
+
+  Procedure TCompReg.PutRelAdr(rl: word);
+  begin
+
+  end;
+
+  {TDictReg}
+  procedure TDictReg.defWord(code: word; name: shortstring);
     var  i: integer;
   begin
-    for i := length(name) downto 0 do stp(byte(name[i]));
-    stp(wordRec(code).Hi);
-    stp(wordRec(code).Lo);
+    for i := length(name) downto 0 do pstbyte(byte(name[i]));
+    pstWord(code);
   end;
 
-  procedure tMemory.stp(b: byte);
+  procedure TDictReg.pstWord(w: word);
   begin
-    dec(tReg);
-    bytes[tReg] := b;
+    pstbyte(wordRec(w).Hi);
+    pstbyte(wordRec(w).Lo);
   end;
 
-  function  tMemory.FindWord(where: word; wrd: shortstring): word;
+  procedure TDictReg.pstbyte(b: byte);
+  begin
+    dec(ptr);
+    TBytesStream(memory).bytes[ptr] := b;
+  end;
+
+  function  TDictReg.FindWord(where: word; wrd: shortstring): word;
   type pSearch = ^searchRec;
     searchRec = record w: word; s: shortstring; end;
   begin result := where;
     repeat
-      with pSearch(@bytes[result])^ do
+      with pSearch(@TBytesStream(memory).bytes[result])^ do
          if s = '' then begin
            result := 0;
            exit;
@@ -116,23 +198,7 @@ implementation
     until false ;
   end;
 
-  procedure tMemory.initPc(adr: word);
-  begin
-    pc := adr and min2;
-    nibNum:= 0;
-  end;
-
-  constructor tMemory.create(memSize: word);
-  begin
-    if memSize < 400 then memSize := memSize;
-    setLength(bytes,memSize);
-  end;
-
-  destructor tMemory.Done;
-  begin
-    bytes := nil;
-  end;
-
+  {tWordStack}
   Procedure tWordStack.Push(w: word);
   begin
     dec(sp);
@@ -149,40 +215,60 @@ implementation
     inc(sp);
   end;
 
-  {ByteMemory}
 
-  Procedure tMemory.store(adr, w: word);
+  {TwordPointer}
+  Procedure TwordPointer.store(adr, w: word);
   begin
-    pword(@bytes[adr])^ := w;
+    pword(@TBytesStream(memory).bytes[adr])^ := w;
   end;
 
-  function  tMemory.fetch(adr: word): word;
+  function  TwordPointer.fetch(adr: word): word;
   begin
-    result := pword(@bytes[adr])^;
+    result := pword(@TBytesStream(memory).bytes[adr])^;
   end;
 
-  Procedure tMemory.nextWord;
+
+  {TpcReg}
+  function  TpcReg.nextWord: boolean;
   begin
-    lastw := fetch(pc);
-    inc(pcReg,2);
+    last := fetch(ptr);
+    result := odd(last);
+    inc(ptr,2);
+    if result then begin
+      dec(last);
+      shift := last;
+      nib := nibble;
+    end;
   end;
 
-  {tnibles}
-  function  tMemory.getNibble: byte;
+  function  TpcReg.getNibble: byte;
   begin
-    LongRec(fshift).hi := 0;
-    fshift := fshift shl 4;
-    dec(nibNum);
-    result := LongRec(fshift).hi;
+    shift := shift shl 4;
+    dec(nib);
+    result := LongRec(shift).hi;
+    LongRec(shift).hi := 0;
   end;
 
-  function  tMemory.RelAdr: word;
-  type word4 = array[1..3] of word;
-  const  wTest: word4 = ($8,$80, $800);
-  begin result := 0; if nibNum = 0 then exit;
-    result := (lastw and pred(wtest[nibNum])) - (lastw and wtest[nibNum]);
+  function  TpcReg.RelAdr: word;
+  const  wTest: array[1..3] of word = ($8,$80, $800);
+  begin result := 0; if nib = 0 then exit;
+    result := (last and pred(wtest[nib])) - (last and wtest[nib]);
   end;
 
 end.
 
+'0','1','2','3','0','1','2','i','0','2','2','4','5','5','0','1','2','6','2','3','0','1','i','2','i','2', // 65..90
+ a   b   c   d   e   f   g   h   i   j   k   l   m   n   o   p   q   r   s   t   u   v   w   x   y   z
+
+function possetex (const c:TSysCharSet;const s : ansistring;count:Integer ):Integer;
+var i,j:Integer;
+begin
+  if pchar(pointer(s))=nil then exit(0);
+  i:=length(s);
+  j:=count;
+  if j>i then  exit(0);
+  while (j<=i) and (not (s[j] in c)) do inc(j);
+  if (j>i) then  j:=0;      // not found.
+  result:=j;
+end;
 

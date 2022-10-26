@@ -28,7 +28,7 @@ type
   objP = tobject;
   OpArray=  array of TProcType;
 
-  t4thCPU = class (tMemory)
+  t4thCPU = class (t4thMemory)
     areg : word;
     xflag : boolean;
     xdbg  : boolean;
@@ -56,7 +56,7 @@ type
     procedure execute;
 
     destructor Done;
-    constructor create(memSize: word);
+    constructor create(memSize: longint);
 
   end;
 
@@ -76,32 +76,32 @@ uses
 
     procedure  t4thCPU.jump;
     begin
-        if nibNum = 0 then exit;
-        pc := pc + RelAdr;
+        if p.nib = 0 then exit;
+        pc := pc + p.RelAdr;
     end;
 
     procedure  t4thCPU._if;
     begin
       if dstk.pop = 0 then jump;
-      nibNum:= 0;
+      p.nib:= 0;
     end;
 
     procedure  t4thCPU.ifm;
     begin
       dec(dstk.top);
       if smallint(dstk.top) >= 0 then jump;
-      nibNum:= 0;
+      p.nib:= 0;
     end;
 
     procedure  t4thCPU.RET;    {escape codes 128}
     begin
-      if  (nibNum = 3) and  (lastw <> realRet) then begin
-        lastw := pred((lastw xor realRet) shr 1);
-        if  lastw > extendedOps then begin  {short literal -1018..1024}
-          dstk.Push(lastw-1025);            {literals does not return}
-          nibNum:= 0;
+      if  (p.nib = 3) and  (p.last <> realRet) then begin
+        p.last := pred((p.last xor realRet) shr 1);
+        if  p.last > extendedOps then begin  {short literal -1018..1024}
+          dstk.Push(p.last-1025);            {literals does not return}
+          p.nib:= 0;
           exit;
-        end else OpArr[lastw+15];  {execute Extended opcode}
+        end else OpArr[p.last+15];  {execute Extended opcode}
       end;                         {end return}
       pc := rstk.pop;
     end;
@@ -111,13 +111,13 @@ uses
   }
     procedure  t4thCPU.rstp;
     begin
-      store(rstk.top, dstk.pop);
+      p.store(rstk.top, dstk.pop);
       inc(rstk.top,2)
     end;
 
     procedure  t4thCPU.rldp;
     begin
-      dstk.Push(fetch(rstk.top));
+      dstk.Push(p.fetch(rstk.top));
       inc(rstk.top,2)
     end;
 
@@ -228,7 +228,7 @@ uses
      defopx(@find, 'FIND');            defopx(@ACCEPT, 'ACCEPT');}
 
 
-    constructor t4thCPU.create(memSize: word  = $ffff);
+    constructor t4thCPU.create(memSize: longint);
        var ind: integer;
        procedure addWord(code: TProcType);
        begin
@@ -238,13 +238,13 @@ uses
 
        procedure defop(code: TProcType);
        begin
-         defWord(ind, opNames[OpCodes(ind)]);
+         t.defWord(ind, opNames[OpCodes(ind)]);
          addWord(code);
        end;
 
        procedure defopx(code: TProcType; name: string);
        begin
-         defWord(hreg, name);
+         t.defWord(here, name);
          dstk.push((succ(ind-16) shl 1)+realRet);
          comma;
          addWord(code);
@@ -253,11 +253,11 @@ uses
    begin
      inherited create(memSize);
      setlength( OpArr,26);
-     tReg := high(bytes);
-     defWord(0,'');      // end of vocabulary
+     t.ptr := high(mem.Bytes);
+     t.defWord(0,'');      // end of vocabulary
 
-     ind := 0;
-     hReg := 256;
+     ind  := 0;
+     here := 256;
 
      defop(@jump);     defop(@xr);     defop(@push);     defop(@SDiv);
      defop(@ret);      defop(@xa);     defop(@PMul);     defop(@PMul);
@@ -281,18 +281,12 @@ uses
 
    procedure t4thCPU.execute;
    begin
-     if nibnum = 0 then begin
-       nextword;
-       if odd(lastw) then begin  {unpack cell to opcodes}
-         dec(lastw);
-         LongRec(fshift).lo := lastw;
-         nibNum := nibble;
-       end else begin            {nesting}
-         rstk.push(pc); pc :=  lastw;
+     if p.nib = 0 then
+       if not p.nextWord then begin  { get next cell }
+         rstk.push(pc); pc :=  p.last;  {nesting}
          exit;
        end;
-     end;
-     OpArr[getNibble];  {execute opcode}
+     OpArr[p.getNibble]; {unpack & execute opcode}
    end;
 
    procedure t4thCPU.emul4(adr: word);
@@ -306,19 +300,19 @@ uses
 
    procedure t4thCPU.comma;
    begin
-     wcomp(dstk.pop);
+     h.wcomp(dstk.pop);
    end;
 
    procedure t4thCPU.commab;
    begin
-     bcomp(dstk.pop);
+     h.bcomp(dstk.pop);
    end;
 
    procedure t4thCPU.find;
    var what, where: word;
    begin
      where := dstk.top;       what  := dstk.next;
-     where := FindWord(where, pstr(@bytes[where])^);
+     where := t.FindWord(where, pstr(@TBytesStream(mem).bytes[where])^);
      if where <> 0 then dstk.next := where;
      dstk.top := where;
    end;
@@ -332,13 +326,20 @@ uses
        #8: if len > 0 then begin  write(#8#32#8); dec(len); end;
        #9: ch := ' ';
        #13: break;
-       else if ch >= ' '
-          then begin write(ch); bytes[where+ind] := c; inc(ind); end;
+       else if ch >= ' ' then begin write(ch);
+         TBytesStream(mem).bytes[where+ind] := c; inc(ind); end;
        end;
      until ind = len;
      dstk.top  := ind;
    end;
 
+initialization
+
+  cpu := t4thcpu.Create( $ffff);
+
+finalization
+
+  cpu.Done;
 
 end.
 
