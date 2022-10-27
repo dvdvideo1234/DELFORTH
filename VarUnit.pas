@@ -28,7 +28,7 @@ type
   objP = tobject;
   OpArray=  array of TProcType;
 
-  t4thCPU = class (t4thMemory)
+  t4thCPU = object (t4thMemory)
     areg : word;
     xflag : boolean;
     xdbg  : boolean;
@@ -94,16 +94,20 @@ uses
     end;
 
     procedure  t4thCPU.RET;    {escape codes 128}
+    var anum, amask : integer;
     begin
-      if  (p.nib = 3) and  (p.last <> realRet) then begin
-        p.last := pred((p.last xor realRet) shr 1);
-        if  p.last > extendedOps then begin  {short literal -1018..1024}
-          dstk.Push(p.last-1025);            {literals does not return}
+      if p.shift<> 0 then begin
+        amask := 1 shl pred(p.nib shl 2);
+        anum := (p.last and pred(amask) ) + amask;
+        if anum >= 16 then begin
+          dstk.Push((anum - amask - (amask and p.last)) div 2);
           p.nib:= 0;
           exit;
-        end else OpArr[p.last+15];  {execute Extended opcode}
-      end;                         {end return}
-      pc := rstk.pop;
+        end;
+        anum  := (anum shr 1) + 15;
+        OpArr[anum];  {execute Extended opcode}
+        end;
+      pc := rstk.pop; exit;   {end return}
     end;
 
   {
@@ -253,7 +257,7 @@ uses
    begin
      inherited create(memSize);
      setlength( OpArr,26);
-     t.ptr := high(mem.Bytes);
+     t.ptr := size;
      t.defWord(0,'');      // end of vocabulary
 
      ind  := 0;
@@ -265,10 +269,10 @@ uses
      defop(@ifm);      defop(@j);      defop(@rldp);     defop(@nand);
 
      {extendedOps   }
-     defopx(@comma, ',');              defopx(@commab, 'C,');
      defopx(@brk, 'BRK');              defopx(@bye, 'BYE');
      defopx(@key, 'KEY');              defopx(@emit, 'EMIT');
      defopx(@find, 'FIND');            defopx(@ACCEPT, 'ACCEPT');
+     defopx(@comma, ',');              defopx(@commab, 'C,');
      defopx(@key_pressed, 'key?');     defopx(@nvld, 'NVLD');
 
    end;
@@ -276,7 +280,7 @@ uses
    destructor t4thCPU.Done;
    begin
      OpArr := nil;
-     inherited destroy;
+     inherited done;
    end;
 
    procedure t4thCPU.execute;
@@ -309,10 +313,9 @@ uses
    end;
 
    procedure t4thCPU.find;
-   var what, where: word;
+   var where: word;
    begin
-     where := dstk.top;       what  := dstk.next;
-     where := t.FindWord(where, pstr(@TBytesStream(mem).bytes[where])^);
+     where := t.FindWord(dstk.top, pstr(T.mem[dstk.next])^);
      if where <> 0 then dstk.next := where;
      dstk.top := where;
    end;
@@ -327,7 +330,7 @@ uses
        #9: ch := ' ';
        #13: break;
        else if ch >= ' ' then begin write(ch);
-         TBytesStream(mem).bytes[where+ind] := c; inc(ind); end;
+         pbyte(T.mem[where+ind])^ := c; inc(ind); end;
        end;
      until ind = len;
      dstk.top  := ind;
@@ -335,7 +338,7 @@ uses
 
 initialization
 
-  cpu := t4thcpu.Create( $ffff);
+  cpu.Create( $ffff+1);
 
 finalization
 
