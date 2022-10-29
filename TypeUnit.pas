@@ -5,17 +5,27 @@ unit TypeUnit;
 interface
 
 uses
-  Classes, SysUtils;
+  Classes, SysUtils, BaseUnit;
 
 const
   nibble = 4;   {bits}
+  NibNum = 16;
   min2 = $fffe; {mask without little indian bit}
+  extendedOps = 8;
+  //realRet = byte(retOp) shl nibble;
 
 type
+  OpCodes = (
+    jumpOp,   xrOp,     pushOp,   SDivOp,
+    retOp,    xaOp,     popOp,    PMulOp,
+    ifOp,     DUPOp,    rstpOp,   a2dOp,
+    ifmOp,    JOp,      rldpOp,   nandOp
+      );
+
   pword = ^word;
   pstr  = ^shortstring;
-  str5  = string[5];
   stkAry= array[byte] of word;
+
 
   TProcType = procedure() of object; // Method type
   FuncType = function(): pword of object;
@@ -43,7 +53,9 @@ type
   TwordPointer = object(tAbstractMemoryPointer)
     ptr: word;
     Procedure store(adr, w: word);
+    Procedure storeb(adr: word; b: byte);
     function  fetch(adr: word): word;
+    function  fetchb(adr: word): byte;
   end;
 
   TNibblesPointer = object(TwordPointer)
@@ -54,15 +66,30 @@ type
 
   TpcReg = object(TNibblesPointer)
     function  getNibble: byte;
-    function  RelAdr: word;
     function  nextWord: boolean;
   end;
 
+  TDumpReg = object(TpcReg)
+    procedure  dumpWords(n: word);
+  end;
+
   TDictReg = object(TwordPointer)
+    procedure Words;
     procedure putbyte(b: byte);
     procedure putWord(w: word);
     function  FindWord(where: word; wrd: shortstring): word;
     procedure defWord(code: word; name: shortstring);
+  end;
+
+  TParsReg = object(TwordPointer)
+    nameAdr: word;   // last name parsed
+    // ptr - address of text buffer
+    maxbuf: word;    // max chars in buf
+    etib: word;   // end of buffer
+    ltib: word;   // len of buffer - remainder
+    procedure Pars(del: byte = 32);
+    function  ACCEPT(where, len: word): word;
+    procedure readLine;
   end;
 
   TCompReg = object(TNibblesPointer)
@@ -79,22 +106,39 @@ type
     p  : TpcReg;
     t  : TDictReg;
     h  : TCompReg;
+    s  : TParsReg;
+    d  : TDumpReg;
 
 
     procedure initPc(adr: word);
+    function  LastName: shortstring;
 
     constructor create(memSize: LongInt);
     destructor Done;
 
-    property pc  : word read p.ptr write initPc;
+    property pc  : word read p.ptr  write initPc;
     property dict: word read t.ptr  write t.ptr;
     property here: word read h.ptr  write h.ptr;
+    property tib:  word read s.ptr;
     property size: Longint read fsize;
+    property name: shortstring read LastName;
 
   end;
 
 
 implementation
+
+uses
+  crt;
+
+const
+  opNames : array[0..NibNum-1] of str5 = (
+    '(JMP', 'XR',  'PUSH', '-/',
+    '(;',   'XA',  'POP',  '+*',
+    '(IF',  'DUP', '!R+',  '+2/',
+    '(IF-', 'J',   '@R+',  'NAND'
+    );
+
 
   {t4thMemory}
   constructor t4thMemory.create(memSize: LongInt);
@@ -104,6 +148,7 @@ implementation
     p.SetPointer(fmemory);
     t.SetPointer(fmemory);
     h.SetPointer(fmemory);
+    s.SetPointer(fmemory);
   end;
 
 
@@ -116,6 +161,11 @@ implementation
   begin
     p.ptr := adr and min2;
     p.nib:= 0;
+  end;
+
+  function  t4thMemory.LastName: shortstring;
+  begin
+    result := pstr(mem[s.nameAdr])^;
   end;
 
 
@@ -169,6 +219,22 @@ implementation
     pword(mem[ptr])^ := w;
   end;
 
+  procedure TDictReg.Words;
+  var t, l, c: word;
+  begin t := ptr; c := 0;
+    writeln;
+    repeat l := fetchb(t+2); if l = 0 then exit;
+      if c+l+5 > 78 then begin writeln; c := 0; end;
+      write(wordToHex(fetch(t)),' ');  inc(t,2);
+      write(pstr(mem[t])^);            t := t + l + 1;
+      c := c + l + 5;
+      if c = 78 then begin writeln; c := 0; end
+      else begin l := 13 - c mod 13;
+        inc(c,l); write(stringOfChar(' ',l));
+      end;
+    until false;
+  end;
+
   procedure TDictReg.putbyte(b: byte);
   begin
     dec(ptr);
@@ -213,9 +279,19 @@ implementation
     pword(mem[adr])^ := w;
   end;
 
+  Procedure TwordPointer.storeb(adr: word; b: byte);
+  begin
+    pbyte(mem[adr])^ := b;
+  end;
+
   function  TwordPointer.fetch(adr: word): word;
   begin
     result := pword(mem[adr])^;
+  end;
+
+  function  TwordPointer.fetchb(adr: word): byte;
+  begin
+    result := pbyte(mem[adr])^;
   end;
 
 
@@ -234,17 +310,63 @@ implementation
 
   function  TpcReg.getNibble: byte;
   begin
-    shift := shift shl 4;
+    shift := shift shl nibble;
     dec(nib);
     result := LongRec(shift).hi;
     LongRec(shift).hi := 0;
   end;
 
-  function  TpcReg.RelAdr: word;
-  const  wTest: array[1..3] of word = ($8,$80, $800);
-  begin result := 0; if nib = 0 then exit;
-    result := (last and pred(wtest[nib])) - (last and wtest[nib]);
-  end;
+    procedure TParsReg.Pars(del: byte = 32);
+    var c: byte;              //sa - store address
+      sa, fa, start: word;    //fa - fetch address
+    begin
+      fa := ltib+etib;
+      while fa < etib do begin    // skip delimiters if any
+        c := fetchb(fa);
+        if c<>del then break;
+        inc(fa);
+      end;
+      start := fa;
+      sa := nameAdr+1;
+      while fa < etib do begin   // gets chars into namebuffer
+        c := fetchb(fa);
+        if c=del then break;
+        storeb(sa, c);
+        inc(sa);
+        inc(fa);
+      end;
+      storeb(sa, byte('`'));
+      storeb(nameAdr, fa-start);
+      ltib := fa - etib;
+    end;
+
+    function  TParsReg.ACCEPT(where, len: word): word;
+    var ind: word;  ch: char; c: byte absolute ch;
+    begin  ind   := 0;
+      repeat ch := readkey;
+        case ch of
+        #8: if len > 0 then begin  write(#8#32#8); dec(len); end;
+        #9: ch := ' ';
+        #13: break;
+        else if ch >= ' ' then begin write(ch);
+          pbyte(mem[where+ind])^ := c; inc(ind); end;
+        end;
+      until ind = len;
+      result  := ind;
+    end;
+
+    procedure TParsReg.readLine;
+    begin
+      ltib := - ACCEPT(ptr, maxbuf);
+      etib := ptr - ltib;
+    end;
+
+    procedure  TdumpReg.dumpWords(n: word);
+    begin
+      while n <> 0 do begin
+
+      end;
+    end;
 
 end.
 

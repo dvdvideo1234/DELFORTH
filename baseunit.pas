@@ -7,8 +7,11 @@ interface
 uses
   Classes, SysUtils;
 
+const  wTest: array[1..3] of word = ($8,$80, $800);
+
 type
   str3  = string[ 3];
+  str5  = string[ 5];
   str7  = string[ 7];
   str15 = string[15];
   str39 = string[39];
@@ -16,6 +19,7 @@ type
   pword = ^word;
   pbyte = ^byte;
 
+  function  RelAdr(inw: word; nib: byte): word;
   function  NToHex(n: dword; chars: byte): str15;
   function  LongToHex(n: dword): str15;
   function  NumberToStr(n: longint; chars: byte = 14; base: byte = 10): str39;
@@ -32,6 +36,11 @@ type
   function  incw(var acc: word; w: word): boolean;
 
 implementation
+
+  function  RelAdr(inw: word; nib: byte): word;
+  begin result := 0; if nib = 0 then exit;
+    result := (inw and pred(wtest[nib])) - (inw and wtest[nib]);
+  end;
 
   function  byteTobin(n: byte): str15;
   begin

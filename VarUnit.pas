@@ -7,25 +7,7 @@ uses
   ,TypeUnit;
 
 type
-  OpCodes = (
-    jumpOp,   xrOp,     pushOp,   SDivOp,
-    retOp,    xaOp,     popOp,    PMulOp,
-    ifOp,     DUPOp,    rstpOp,   a2dOp,
-    ifmOp,    JOp,      rldpOp,   nandOp
-      );
-
-const
-  extendedOps = 4;
-  realRet = byte(retOp) shl nibble;
-  opNames : array[OpCodes] of str5 = (
-    '(JMP', 'XR',  'PUSH', '-/',
-    '(;',   'XA',  'POP',  '+*',
-    '(IF',  'DUP', '!R+',  '+2/',
-    '(IF-', 'J',   '@R+',  'NAND'
-    );
-
-type
-  objP = tobject;
+  //objP = tobject;
   OpArray=  array of TProcType;
 
   t4thCPU = object (t4thMemory)
@@ -37,6 +19,8 @@ type
     Dstk : tWordStack;
     Rstk : tWordStack;
 
+    SEARCH_EXEC: TProcType;
+
     procedure jump;            procedure _if;
     procedure ifm;             procedure rstp;
     procedure rldp;            procedure xr;
@@ -46,17 +30,35 @@ type
     procedure add2div;         procedure PMul;
     procedure SDiv;            procedure RET;
 
-    procedure comma;           procedure commab;
-    procedure bye;             procedure brk;
-    procedure emit;            procedure key;
-    procedure nvld;            procedure key_pressed;
-    procedure find;            procedure ACCEPT;
+    procedure comma;
+    procedure readLine;
+    procedure brk;
+    procedure NewItem;
+    procedure Parsing;
+    procedure emit;
+    procedure key;
+
+    procedure SEARCH_EXEC_INT;
+    procedure SEARCH_EXEC_COMP;
+    procedure semicolon;
+    procedure Colon;
+    procedure initCpu;
+    procedure GetNumber;
+    procedure words;
+    function  found: word;
+    procedure exec(dea: word);
+    procedure error(msg: shortstring);
+    procedure warning(msg: shortstring);
+    //function  existed(msg: shortstring): word;
+    procedure Eval_1;
 
     procedure emul4(adr: word);
     procedure execute;
 
     destructor Done;
     constructor create(memSize: longint);
+    property Off: boolean read xflag write xflag;
+    property Debug: boolean read xdbg write xdbg;
 
   end;
 
@@ -77,7 +79,7 @@ uses
     procedure  t4thCPU.jump;
     begin
         if p.nib = 0 then exit;
-        pc := pc + p.RelAdr;
+        pc := pc + RelAdr(p.last, p.nib);
     end;
 
     procedure  t4thCPU._if;
@@ -94,20 +96,18 @@ uses
     end;
 
     procedure  t4thCPU.RET;    {escape codes 128}
-    var anum, amask : integer;
+    var anum: word;
     begin
       if p.shift<> 0 then begin
-        amask := 1 shl pred(p.nib shl 2);
-        anum := (p.last and pred(amask) ) + amask;
-        if anum >= 16 then begin
-          dstk.Push((anum - amask - (amask and p.last)) div 2);
-          p.nib:= 0;
+        anum := pred(pred(wTest[p.nib]) and (p.last  shr 1));
+        if anum < 8 then OpArr[anum or 16]  {execute Extended opcode}
+        else begin                 {max real value of numbers}
+          dstk.Push(anum-9);
+          p.nib:= 0;  {0..118, 0..2038}
           exit;
         end;
-        anum  := (anum shr 1) + 15;
-        OpArr[anum];  {execute Extended opcode}
-        end;
-      pc := rstk.pop; exit;   {end return}
+      end;
+      pc := rstk.pop;    {end return}
     end;
 
   {
@@ -207,7 +207,7 @@ uses
       end;
     end;
 
-    procedure t4thCPU.bye;  begin   halt;  end;
+    //procedure t4thCPU.bye;  begin   halt;  end;
 
     procedure t4thCPU.brk;  begin   xflag := true;  end;
 
@@ -216,15 +216,9 @@ uses
     procedure t4thCPU.key;  var c: char;
     begin c := readkey; dstk.Push(byte(c));  end;
 
-    procedure t4thCPU.key_pressed;
-    begin dstk.Push(byte(keypressed));  end;
+    //procedure t4thCPU.key_pressed; begin dstk.Push(byte(keypressed));  end;
 
-    procedure t4thCPU.nvld;
-    begin
-      writeln;
-      writeln('Invalid subcode');
-      readln;
-    end;
+  //procedure t4thCPU.nvld;begin writeln;writeln('Invalid subcode');readln;end;
 
 
     {     defopx(@brk, 'BRK');              defopx(@bye, 'BYE');
@@ -242,7 +236,7 @@ uses
 
        procedure defop(code: TProcType);
        begin
-         t.defWord(ind, opNames[OpCodes(ind)]);
+         t.defWord(ind, opNames[ind]);
          addWord(code);
        end;
 
@@ -256,24 +250,38 @@ uses
 
    begin
      inherited create(memSize);
-     setlength( OpArr,26);
-     t.ptr := size;
+     setlength( OpArr,24);
+     dict := size;     // t
+
+     here := 256;      // h
+
+     s.nameAdr  :=16;
+     s.ptr      := 80;    // tib
+     s.maxbuf   := here - s.ptr;
+
+     initCpu;
+
      t.defWord(0,'');      // end of vocabulary
 
      ind  := 0;
-     here := 256;
-
      defop(@jump);     defop(@xr);     defop(@push);     defop(@SDiv);
      defop(@ret);      defop(@xa);     defop(@PMul);     defop(@PMul);
      defop(@_if);      defop(@DUP);    defop(@rstp);     defop(@add2div);
      defop(@ifm);      defop(@j);      defop(@rldp);     defop(@nand);
 
      {extendedOps   }
-     defopx(@brk, 'BRK');              defopx(@bye, 'BYE');
+     defopx(@brk, 'BRK');              defopx(@comma, ',');
      defopx(@key, 'KEY');              defopx(@emit, 'EMIT');
-     defopx(@find, 'FIND');            defopx(@ACCEPT, 'ACCEPT');
-     defopx(@comma, ',');              defopx(@commab, 'C,');
-     defopx(@key_pressed, 'key?');     defopx(@nvld, 'NVLD');
+     defopx(@readLine, 'READLINE');
+     defopx(@NewItem, ':=');           defopx(@Parsing, 'WORD');
+
+     //defopx(@find, 'FIND');
+     //procedure NewItem;     procedure Parsing;
+     //procedure words;
+     //defopx(@bye, 'BYE');
+     //defopx(@commab, 'C,');
+     //defopx(@key_pressed, 'key?');
+     //defopx(@nvld, 'NVLD');
 
    end;
 
@@ -295,11 +303,10 @@ uses
 
    procedure t4thCPU.emul4(adr: word);
    begin
-     InitPc(adr);
-     xflag := false;
+     InitPc(adr);   off := false;
      repeat
        execute;
-     until xflag;
+     until off;
    end;
 
    procedure t4thCPU.comma;
@@ -307,34 +314,101 @@ uses
      h.wcomp(dstk.pop);
    end;
 
-   procedure t4thCPU.commab;
+   //procedure t4thCPU.commab; begin h.bcomp(dstk.pop); end;
+
+   function t4thCPU.found: word;
    begin
-     h.bcomp(dstk.pop);
+     result := t.FindWord(dict, name);
    end;
 
-   procedure t4thCPU.find;
-   var where: word;
+   procedure t4thCPU.readLine;
    begin
-     where := t.FindWord(dstk.top, pstr(T.mem[dstk.next])^);
-     if where <> 0 then dstk.next := where;
-     dstk.top := where;
+     s.readLine;
    end;
 
-   procedure t4thCPU.ACCEPT;
-   var len, ind, where: word;  ch: char; c: byte absolute ch;
+   procedure t4thCPU.words;
    begin
-     where := dstk.next;     len   := dstk.top;     ind   := 0;
-     repeat ch := readkey;
-       case ch of
-       #8: if len > 0 then begin  write(#8#32#8); dec(len); end;
-       #9: ch := ' ';
-       #13: break;
-       else if ch >= ' ' then begin write(ch);
-         pbyte(T.mem[where+ind])^ := c; inc(ind); end;
-       end;
-     until ind = len;
-     dstk.top  := ind;
+     t.Words;
    end;
+
+   procedure t4thCPU.NewItem;
+   begin
+     Parsing;
+     if name = '' then error('Empty WOrd Name');
+     if found <> 0 then warning('duplicates');
+     t.defWord(dstk.pop, name);
+   end;
+
+   procedure t4thCPU.Parsing;
+   begin
+     s.Pars();
+   end;
+
+   procedure t4thCPU.Eval_1;
+   begin
+     Parsing;
+     if name = '' then exit;
+     SEARCH_EXEC;
+       //readLine
+   end;
+
+   procedure t4thCPU.error(msg: shortstring);
+   begin
+     initCpu;
+     writeln;
+     writeln(name,':',msg);
+     writeln;
+   end;
+
+   procedure t4thCPU.initCpu;
+   begin
+     SEARCH_EXEC := @SEARCH_EXEC_INT;
+     off := true;
+     Debug:=false;
+     s.ltib := 0;   {buffer became empty}
+   end;
+
+
+   procedure t4thCPU.warning(msg: shortstring);
+   begin write('[',name,']',msg,' ');   end;
+
+   procedure t4thCPU.SEARCH_EXEC_INT;
+   var dea: word;
+   begin
+     dea := found;
+     if dea = 0 then error('Not found');
+     exec(dea);
+   end;
+
+   procedure t4thCPU.SEARCH_EXEC_COMP;
+   begin
+   end;
+
+   procedure t4thCPU.Colon;
+   begin
+     SEARCH_EXEC := @SEARCH_EXEC_COMP;
+   end;
+
+   procedure t4thCPU.semicolon;
+   begin
+     SEARCH_EXEC := @SEARCH_EXEC_INT;
+
+   end;
+
+   procedure t4thCPU.GetNumber;
+   var n, err: word;
+   begin
+     val(name,n,err);
+     if err <>0 then error('Not a number');
+     dstk.Push(n);
+   end;
+
+   procedure t4thCPU.exec(dea: word);
+   begin
+     dstk.Push(dea);
+     emul4($202); {execute word and return}
+   end;
+
 
 initialization
 
