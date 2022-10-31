@@ -7,7 +7,11 @@ interface
 uses
   Classes, SysUtils;
 
-const  wTest: array[1..3] of word = ($8,$80, $800);
+const
+  nibble = 4;   {bits}
+  NibNum = 16;
+  NibMask= nibNum-1;
+  wTest: array[0..nibble-1] of word = (0, $8,$80, $800);
 
 type
   str3  = string[ 3];
@@ -19,7 +23,8 @@ type
   pword = ^word;
   pbyte = ^byte;
 
-  function  RelAdr(inw: word; nib: byte): word;
+  function  fitIn12b(ra: smallint): byte;
+  function  RelAdr(inw: word; Mask: word): word;
   function  NToHex(n: dword; chars: byte): str15;
   function  LongToHex(n: dword): str15;
   function  NumberToStr(n: longint; chars: byte = 14; base: byte = 10): str39;
@@ -37,9 +42,20 @@ type
 
 implementation
 
-  function  RelAdr(inw: word; nib: byte): word;
-  begin result := 0; if nib = 0 then exit;
-    result := (inw and pred(wtest[nib])) - (inw and wtest[nib]);
+  function fitIn12b(ra: smallint): byte;
+  var mask: word;
+  begin mask := $f000;
+    result := 4;
+    repeat
+      if not ((mask and ra) in [mask,0]) then exit;
+      dec(result);
+      mask := mask shr nibble;
+    until result = 0;
+  end;
+
+  function  RelAdr(inw: word; Mask: word): word;  {mask power of 2}
+  begin result := 0; if Mask < 2 then exit;
+    result := (inw and Mask) - (inw and Mask);
   end;
 
   function  byteTobin(n: byte): str15;
@@ -116,7 +132,7 @@ function  NToHex(n: dword; chars: byte): str15;
 
   function  DigToChar(n: byte): char;
   begin
-    if n > 10 then inc(n, 7);
+    if n > 9 then inc(n, 7);
     result := char(n+byte('0'));
   end;
 
