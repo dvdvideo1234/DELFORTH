@@ -50,10 +50,10 @@ type
     last : word;
     shift: dword;
     nib: byte;
-    function  RelAdr: word;
   end;
 
   TpcReg = object(TNibblesPointer)
+    function  RelAdr: word;
     function  getNibble: byte;
     function  nextWord: boolean;
   end;
@@ -147,8 +147,9 @@ type
     destructor Done;
     constructor create(memSize: longint);
     procedure initPc(adr: word);
-    function  LastName: shortstring;
+    function  LastName: shortstring;  {from parsing}
     procedure dumpWords(n: word);
+    procedure wcomp(st:  shortstring);
 
     property Off: boolean read xflag write xflag;
     property Debug: boolean read xdbg write xdbg;
@@ -410,6 +411,12 @@ type
     LongRec(shift).hi := 0;
   end;
 
+  function  TpcReg.RelAdr: word;
+  begin
+    if nib = 0 then exit(0);
+    result := (last and pred(wTest[nib])) - (last and (wTest[nib]));
+  end;
+
   {TParsReg}
     procedure TParsReg.Pars(del: byte = ord(' '));
     var c: byte;              //sa - store address
@@ -467,42 +474,36 @@ type
 
     {TDumpReg}
     function  TDumpReg.dumpWord: boolean;
-    var  nibl: byte; where: word; nibname: str7;
-    begin
-      write(#13#10,wordtohex(ptr),'  ',wordtohex(fetch(ptr)),' ');
+    var  nibl: byte; where: smallint; nibname: str39;
+    begin   //write('{ ',wordtohex(fetch(ptr)),'} ');
       result := nextword; if not result then exit;
-      repeat  nibl := self.getNibble;
+      repeat
+        nibl := getNibble;
         nibname := opnames[nibl];
         if (nibl and 3) = 0 then begin
           where := reladr;
           if where = 0 then begin
             case opCode(nibl) of
-            jumpOp: nibname := 'NOP';
-            RetOp: ;
-            IfOP:  nibname := 'DROP';
-            IfmOp: nibname := '1-';
+            jumpOp: nibname := '(NOP';
+            //RetOp: ;
+            IfOP:  nibname := '(DROP';
+            IfmOp: nibname := '(1-';
             end;
+          end else if opCode(nibl) <>  RetOp then begin
+            nibname := nibname + ' ' + ntostr(where);
           end else begin
-            case opCode(nibl) of
-            RetOp:
-              case smalLint(where) and 7 of
-                    0: nibname := 'UNDEF;'; // UNAVAILABLE
-                    1: nibname := 'BRK;';   // СТОП
-                    2: nibname := 'KEY;';
-                    3: nibname := 'EMIT;';
-                    4: nibname := 'GET#;';
-                    5: nibname := 'KEY?;';
-                    6: nibname := 'TRON;';
-                    7: nibname := 'TROFF;';
-              else
-                begin
-                  if smalLint(where) < 0 then inc(where,4) else dec(where,4);
-                  nibname := inttostr(smalLint(where));
-                end;
-              end;
-            else  nibname := nibname + ' ' + wordtohex(ptr + where);
+            where := where div 2;
+            case where of
+            -1: nibname := '(ESC;';
+            -2: nibname := '(BRK;';
+            -3: nibname := '(TR1;';
+            -4: nibname := '(TR0;';
+            ELSE  BEGIN
+              if where<0  then  INC(where,5);
+              nibname := ntostr(where);
+              END;
             end;
-          END;
+          end;
           nib := 0;
         end;
         write(nibname,' ');
@@ -510,23 +511,27 @@ type
     end;
 
     {TNibblesPointer}
-    function  TNibblesPointer.RelAdr: word;
-    begin
-      result := BaseUnit.RelAdr(last, wTest[nib]);
-    end;
-
     {t4thMemory}
     procedure t4thMemory.dumpWords(n: word);
-    var  where: word;
+    var  where: word;  ST: str39;
     begin
       FOR n := n downto 1 do begin
         where := t.findw(t.ptr, d.ptr);
-        if where <> 0 then write(#13#10,pSearch(mem[where])^.s, ':');
+        if where <> 0 then write(#13#10': ',pSearch(mem[where])^.s, '  ');
         if not d.dumpWord then  begin
           where := t.findw(t.ptr, d.last);
-          if where <> 0 then write(pSearch(mem[where])^.s);
+          st := '{ '+wordtohex(d.last) + '}';
+          if where <> 0 then st := pSearch(mem[where])^.s;
+          write(st,' ');
         end;
       end;
+    end;
+
+    procedure t4thMemory.wcomp(st:  shortstring);
+    var  where: word;
+    begin  WHERE :=  T.FindWord(T.ptr,ST);
+      if where = 0 then error('not found');
+      h.wcomp(t.fetch(where));
     end;
 
     procedure t4thMemory.initPc(adr: word);
@@ -740,15 +745,39 @@ type
       ifOp,     DUPOp,    rstpOp,   a2dOp,       8 9 a b
       ifmOp,    JOp,      rldpOp,   nandOp       c d e f }
 
-      t.defWord(here, '(2#');  h.wcomp($e001);        // literal
-      t.defWord(here, '(#');  h.wcomp($e401);        // literal
       t.defWord(here, 'IXEC');  h.wcomp($D001);
-      t.defWord(here, 'EXECUTE');  h.wcomp($2401);
-      t.defWord(here, 'EX');  h.wcomp($6125);
+      t.defWord(here,'EXECUTE');h.wcomp($2401);
+      t.defWord(here, 'XTRON'); h.wcomp($24FB);
+      t.defWord(here, 'TRON');  h.wcomp($4FFB);
+      t.defWord(here, 'TRACE'); wcomp('XTRON');
+      t.defWord(here, 'TROFF'); h.wcomp($4FF9);
+      t.defWord(here, '(ESC');  h.wcomp($4FFf);
+      t.defWord(here, '1STEP'); wcomp('EXECUTE');
+      t.defWord(here, 'BRK');   h.wcomp($4FFD);
+      t.defWord(here, '(#');    h.wcomp($e401);
+      t.defWord(here, 'NEG');   h.wcomp($C001);
+      t.defWord(here, 'NOT');   h.wcomp($9F41);
+      t.defWord(here, 'AND');   h.wcomp($F9F5);
+      t.defWord(here, 'EX');    h.wcomp($6125);
       t.defWord(here, 'SWAP');  h.wcomp($2165);
-      t.defWord(here, 'DROP');  h.wcomp($8001);   h.wcomp($4001);
-      t.defWord(here, '(CON');  h.wcomp($E001);
+      t.defWord(here, '-');     wcomp('NEG');
+      t.defWord(here, '+');     h.wcomp($B001);
+      t.defWord(here, 'DROP');  h.wcomp($8001);
+      t.defWord(here, 'NOP');   h.wcomp($4001);
+      t.defWord(here, '@');     h.wcomp($2001);
+      t.defWord(here, '(@');    h.wcomp($E001);
       t.defWord(here, 'EXIT');  h.wcomp($6801);   h.wcomp($4001);
+      t.defWord(here, '(SET');  h.wcomp($E801);
+      t.defWord(here, '(!');    h.wcomp($A0f9);
+      t.defWord(here, '!');     h.wcomp($20fd);
+      t.defWord(here, '(VAR3'); h.wcomp($EEF9);
+      t.defWord(here, '(VAR');  h.wcomp($6401);
+      // 0                     -1               -1019          1023
+      h.wcomp($4Ff7); h.wcomp($4FF5); h.wcomp($4801); h.wcomp($47FF);
+      h.wcomp($4003); h.wcomp($4005); h.wcomp($4007); h.wcomp($4009);
+      t.defWord(here, '(|');  h.wcomp($E125);
+      h.wcomp($4005); h.wcomp($4007); h.wcomp($4009);
+
 
     end;
 

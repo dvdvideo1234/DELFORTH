@@ -24,7 +24,7 @@ type
   pbyte = ^byte;
 
   function  fitIn12b(ra: smallint): byte;
-  function  RelAdr(inw: word; Mask: word): word;
+  function  RelAdr(inw: word; Mask: word): smallint;
   function  NToHex(n: dword; chars: byte): str15;
   function  LongToHex(n: dword): str15;
   function  NumberToStr(n: longint; chars: byte = 14; base: byte = 10): str39;
@@ -53,9 +53,9 @@ implementation
     until result = 0;
   end;
 
-  function  RelAdr(inw: word; Mask: word): word;  {mask power of 2}
+  function  RelAdr(inw: word; Mask: word): smallint;  {mask power of 2}
   begin result := 0; if Mask < 2 then exit;
-    result := (inw and Mask) - (inw and Mask);
+    result := (inw and pred(Mask)) - (inw and Mask);
   end;
 
   function  byteTobin(n: byte): str15;
@@ -151,34 +151,29 @@ function  NToHex(n: dword; chars: byte): str15;
     result := WordToHex(LongRec(n).Hi) + WordToHex(LongRec(n).Lo);
   end;
 
-  function divmod(var w: dword; d: dword): dword;
-  begin
-    asm
-       xor edx,edx
-       mov ecx,w
-       mov eax,[ecx]
-       div d
-       mov [ecx],eax
-       mov Result,edx
-    end;
+  function divmod(var w: dword; d: dword): dword; assembler; nostackframe;
+  asm
+     push eax
+     xor  ecx,ecx
+     xchg ecx,edx
+     mov  eax,[eax]
+     div  ecx
+     pop  ecx
+     mov  [ecx],eax
+     xchg eax,edx
   end;
 
-  function  ROLD(d: dword; ind: byte): dword;
+  function  ROLD(d: dword; ind: byte): dword; assembler; nostackframe;
   label stayz;
-  begin asm
-    xor edx,edx
-    inc edx
-    mov cl,ind
-    mov eax,d
-    and cl,31
+  asm
+    and dl,31
+    mov cl,dl
+    mov dl,1
     shl edx,cl
-
     mov ecx,edx
     and ecx,eax // one bit isolate
     xor eax,ecx // and zeroed
-
     dec edx    // mask
-
     and edx,eax
     xor eax,edx
     shl edx,1
@@ -186,9 +181,34 @@ function  NToHex(n: dword; chars: byte): str15;
     inc  edx
   stayz:
     or  eax,edx
-    mov Result,eax
-  end; end;
+  end;
 
+{function  ROLD(d: dword; ind: byte): dword;
+label stayz;
+begin asm
+  xor edx,edx
+  inc edx
+  mov cl,ind
+  mov eax,d
+  and cl,31
+  shl edx,cl
+
+  mov ecx,edx
+  and ecx,eax // one bit isolate
+  xor eax,ecx // and zeroed
+
+  dec edx    // mask
+
+  and edx,eax
+  xor eax,edx
+  shl edx,1
+  jecxz stayz
+  inc  edx
+stayz:
+  or  eax,edx
+  mov Result,eax
+end; end;
+}
   function  RORD(d: dword; ind: byte): dword;
   label stayz;
   begin asm
