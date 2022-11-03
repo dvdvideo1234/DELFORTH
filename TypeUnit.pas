@@ -59,16 +59,22 @@ type
   end;
 
   TDumpReg = object(TpcReg)
-    function  dumpWord: boolean;
+    cntc: word;
+    procedure dot(c: char);
+    procedure dot(b: byte);
+    procedure dot(w: word);
+    procedure dot(s: shortstring);
+    procedure cr;
   end;
 
   TDictReg = object(TwordPointer)
+    function  tick(wrd: ShortString): word;
     function  alloc(w: word): word;
     procedure Words;
     procedure putbyte(b: byte);
     procedure putWord(w: word);
     function  FindWord(where: word; wrd: shortstring): word;
-    function  FindW(where, what: word): word;
+    function  FindW(what: word): word;
     procedure defWord(code: word; name: shortstring);
   end;
 
@@ -87,12 +93,11 @@ type
   end;
 
   TCompReg = object(TNibblesPointer)
+    procedure align;
+    function  HasAligned(ra: smallint): boolean;
     procedure wcomp(w: word);
     Procedure PutNibble(n: byte);
-    function  PreparedForPut(ra: smallint):byte;
-    Procedure FlushNumber(ra: smallint);
     Procedure PutRelAdr({nibble}nb: byte; {destination}ra: smallint);
-    Procedure PutNumber(ra: smallint);
     procedure bcomp(b: byte);
     procedure PutString(s: shortstring);
   end;
@@ -121,11 +126,11 @@ type
     procedure semicolon;
     procedure Colon;
     procedure initCpu;
-    procedure GetNumber;
+    //procedure GetNumber;
     procedure words;
     function  found: word;
     procedure exec(dea: word);
-    procedure error(msg: shortstring);
+    //procedure error(msg: shortstring);
     procedure warning(msg: shortstring);
     procedure EvalStr(st:  shortstring);  {text evaluator}
     procedure Eval(buf, len: word);  {text evaluator}
@@ -148,8 +153,10 @@ type
     constructor create(memSize: longint);
     procedure initPc(adr: word);
     function  LastName: shortstring;  {from parsing}
+    function  dumpWord: shortstring;
     procedure dumpWords(n: word);
     procedure wcomp(st:  shortstring);
+    procedure strcomp(s3: shortstring);
 
     property Off: boolean read xflag write xflag;
     property Debug: boolean read xdbg write xdbg;
@@ -172,11 +179,14 @@ uses
   crt;
 
 const
-  opNames : array[0..NibMask] of str5 = (
-    '(JMP', 'XR',  'PUSH', '-/',
-    '(;',   'XA',  'POP',  '+*',
-    '(IF',  'DUP', '!R+',  '+2/',
-    '(IF-', 'J',   '@R+',  'NAND'
+  opNames : array[0..NibMask+9] of str5 = (
+    '(JMP',  'XR',   'PUSH', '-/',
+    '(;',    'XA',   'POP',  '+*',
+    '(IF',   'DUP',  '!R+',  '+2/',
+    '(IF-',  'J',    '@R+',  'NAND',
+    '(TR0;', '(TR1;','(BRK;','(ESC;',
+    '(NOP',  '(DROP','(1-',  ':',
+    '(;#'
     );
 
 const
@@ -188,9 +198,19 @@ type
     jumpOp,   xrOp,     pushOp,   SDivOp,
     retOp,    xaOp,     popOp,    PMulOp,
     ifOp,     DUPOp,    rstpOp,   a2dOp,
-    ifmOp,    JOp,      rldpOp,   nandOp
-      );
+    ifmOp,    JOp,      rldpOp,   nandOp,
+    TR0x,     TR1x,     BRKx,     ESCx,
+    nopx,     dropx,    onemx,    colx,
+    numx
+    );
 
+  function searchByName(opname: shortstring): shortint;
+  var i: integer;
+  begin
+    for i := ord(numx) downto ord(jumpOp) do
+      if opname = opnames[i] then exit(i);
+    result := -1;
+  end;
 
   {tAbstractMemoryPointer}
   procedure tAbstractMemoryPointer.SetPointer(MemPtr: Pointer);
@@ -206,6 +226,34 @@ type
 
 
   {TCompReg}
+  procedure TCompReg.align;
+  begin
+    while nib <> 0 do
+      PutNibble(0);
+  end;
+
+  function  TCompReg.HasAligned(ra: smallint): boolean;
+  var newnib: byte;  wnib: byte;
+  begin
+    wnib := nib;
+    result := false;
+    if wnib = 0 then wnib := 4;
+    if ra <> 0 then begin
+      if (ra < -2048) or (ra > 2047)
+        then error(reRangeError);
+      if nib <> 0 then begin
+        newnib := 1;
+        while (ra < -wTest[newnib]) or (ra >= wTest[newnib]) do
+          inc(newnib);
+        inc(newnib);
+        if (newnib > wnib) then  begin
+          result :=  true;
+          align;
+        end;
+      end;
+    end;
+  end;
+
   procedure TCompReg.bcomp(b: byte);
   begin
     pbyte(mem[ptr])^ := b;
@@ -224,59 +272,27 @@ type
     inc(ptr,2);
   end;
 
-  Procedure TCompReg.PutNibble(n: byte);  {plus spetial codes}
+  Procedure TCompReg.PutNibble(n: byte);
   begin
-    if opcode(n) in [jumpOp..NandOp] then begin
-      if nib = 0 then begin last := n; nib := 3; exit; end;
-        dec(nib);
-        last := last shl nibble;
-        if (nib <> 0) or (not  odd(n)) then last := last or n;
-        if nib = 0 then begin
-          wcomp(succ(last));
-          if odd(n) then PutNibble(n);
-        end;
-      exit;
+    n := n and NibMask;
+    if (nib = 0) then nib := 4;
+    dec(nib);
+    last := last shl nibble;
+    if nib <> 0 then last := last or n
+    else if odd(n) then  begin
+      wcomp(succ(last)); last := n; nib := 3;
+    end else begin
+      last := last or n; wcomp(succ(last));
     end;
-    n := (n and 7) shl 1;  {spetial codes 16..23  becames 0..14}
-    if nib = 1 then PutNibble(0);
-    PutNibble(byte(retOp));
-    FlushNumber(n - (n and 8));
-  end;
-
-  function TCompReg.PreparedForPut(ra: smallint):byte;
-  var newnib: byte;
-  begin
-    newnib := fitIn12b(ra);
-    if newnib = 4 then error(reRangeError);
-    if (newnib > nib+1) and (nib <> 0) then
-      while nib <> 0 do PutNibble(0);
-    result := nib;
-  end;
-
-  Procedure TCompReg.PutNumber(ra: smallint);
-  begin
-    if ra < 0 then dec(ra,4) else inc(ra,4);
-    ra := ra shl 1;
-    preparedForPut(ra);
-    PutNibble(byte(RetOp));
-    FlushNumber(ra);
-  end;
-
-  Procedure TCompReg.FlushNumber(ra: smallint);
-  begin
-    while nib <> 0 do  PutNibble((ra shr ((nib-1) shl 2)) and 15);
   end;
 
   Procedure TCompReg.PutRelAdr({nibble}nb: byte; {destination}ra: smallint);
-  var newnib: byte;
   begin
-    newnib := nib;
-    if preparedForPut(ra) <> newnib then begin
-      dec(ra,2);
-      if fitIn12b(ra) = 4 then error(reRangeError);
-    end;
+    HasAligned(ra);
     PutNibble(nb);
-    FlushNumber(ra);
+    while nib <> 0 do begin
+      PutNibble(ra shr ((nib-1) shl 2));
+    end;
   end;
 
   {TDictReg}
@@ -297,6 +313,13 @@ type
   begin
     dec(ptr,w);
     result := ptr;
+  end;
+
+  function  TDictReg.tick(wrd: ShortString): word;
+  begin
+    result := FindWord(ptr, wrd);
+    if result = 0 then exit;
+    result := fetch(result);
   end;
 
   procedure TDictReg.Words;
@@ -321,9 +344,9 @@ type
     pbyte(mem[ptr])^ := b;
   end;
 
-  function  TDictReg.FindW(where, what: word): word;
+  function  TDictReg.FindW(what: word): word;
   var p: pSearch;
-  begin result := where;
+  begin result := ptr;
     repeat p := pSearch(mem[result]);
       with p^ do
         if s = '' then exit(0)
@@ -332,7 +355,7 @@ type
     until false ;
   end;
 
-  function  TDictReg.FindWord(where: word; wrd: shortstring): word;
+  function  TDictReg.FindWord(where: word; wrd: ShortString): word;
   var p: pSearch;
   begin result := where;
     repeat p := pSearch(mem[result]);
@@ -413,8 +436,9 @@ type
 
   function  TpcReg.RelAdr: word;
   begin
-    if nib = 0 then exit(0);
-    result := (last and pred(wTest[nib])) - (last and (wTest[nib]));
+    //if nib = 0 then exit(0);
+    //result := (last and pred(wTest[nib])) - (last and (wTest[nib]));
+    result := LongRel(last, wTest[nib]);
   end;
 
   {TParsReg}
@@ -473,10 +497,43 @@ type
     end;
 
     {TDumpReg}
-    function  TDumpReg.dumpWord: boolean;
+    procedure TDumpReg.dot(c: char);
+    begin
+      write(c);
+      inc(cntc);
+    end;
+
+    procedure TDumpReg.dot(b: byte);
+    begin
+      dot(bytetohex(b));
+    end;
+
+    procedure TDumpReg.dot(w: word);
+    begin
+      dot(wordtohex(w));
+    end;
+
+    procedure TDumpReg.dot(s: shortstring);
+    begin
+      inc(cntc, length(s));
+      write(s);
+    end;
+
+    procedure TDumpReg.cr;
+    begin
+      dot(#13#10);
+      cntc := 0;
+    end;
+
+
+    {t4thMemory}
+    function  t4thMemory.dumpWord: shortstring;
     var  nibl: byte; where: smallint; nibname: str39;
+      wadr: word;
     begin   //write('{ ',wordtohex(fetch(ptr)),'} ');
-      result := nextword; if not result then exit;
+      result := '';
+      if not d.nextword then exit;
+      with d do
       repeat
         nibl := getNibble;
         nibname := opnames[nibl];
@@ -489,8 +546,11 @@ type
             IfOP:  nibname := '(DROP';
             IfmOp: nibname := '(1-';
             end;
-          end else if opCode(nibl) <>  RetOp then begin
-            nibname := nibname + ' ' + ntostr(where);
+          end else if opCode(nibl) <>  RetOp then begin  // branches
+            wadr := t.FindW(ptr+where);
+            if wadr <> 0
+              then nibname := nibname + ' ' + pSearch(mem[wadr])^.s
+              else nibname := nibname + ' { ' + wordtohex(ptr+where)+'}';
           end else begin
             where := where div 2;
             case where of
@@ -500,37 +560,46 @@ type
             -4: nibname := '(TR0;';
             ELSE  BEGIN
               if where<0  then  INC(where,5);
-              nibname := ntostr(where);
+              nibname := '(;# ' + ntostr(where);
               END;
             end;
           end;
           nib := 0;
         end;
-        write(nibname,' ');
+        result := result + nibname + ' ';
       until nib = 0;
     end;
 
-    {TNibblesPointer}
-    {t4thMemory}
     procedure t4thMemory.dumpWords(n: word);
     var  where: word;  ST: str39;
-    begin
+    begin d.cr; D.dot('{ '+wordtohex(d.ptr) + '} ');
       FOR n := n downto 1 do begin
-        where := t.findw(t.ptr, d.ptr);
-        if where <> 0 then write(#13#10': ',pSearch(mem[where])^.s, '  ');
-        if not d.dumpWord then  begin
-          where := t.findw(t.ptr, d.last);
-          st := '{ '+wordtohex(d.last) + '}';
-          if where <> 0 then st := pSearch(mem[where])^.s;
-          write(st,' ');
+        where := t.findw(d.ptr);
+        if where <> 0 then begin
+          d.dot(': '+pSearch(mem[where])^.s + '  ');
         end;
+        st := dumpWord;
+        if st = '' then  begin
+          where := t.findw(d.last);
+          if where <> 0
+            then st := pSearch(mem[where])^.s
+            else st := '{ '+wordtohex(d.last) + '}';
+        end;
+        d.dot(st);
+        if d.cntc >= 96 // tabulate
+          then BEGIN d.cr; D.dot('{ '+wordtohex(d.ptr) + '} '); END
+          else begin
+            where := 22 - (d.cntc - 8) mod 22;
+            st := stringofchar(' ',where);
+            d.dot(st);
+          end;
       end;
     end;
 
     procedure t4thMemory.wcomp(st:  shortstring);
     var  where: word;
     begin  WHERE :=  T.FindWord(T.ptr,ST);
-      if where = 0 then error('not found');
+      if where = 0 then error(reNone);
       h.wcomp(t.fetch(where));
     end;
 
@@ -591,7 +660,7 @@ type
     procedure t4thMemory.NewItem;
     begin
       Parsing;
-      if name = '' then error('Empty WOrd Name');
+      if name = '' then error(reNone);
       if found <> 0 then warning('duplicates');
       t.defWord(dstk.pop, name);
     end;
@@ -622,13 +691,13 @@ type
       eval(s.strbuf+1,length(st));
     end;
 
-    procedure t4thMemory.error(msg: shortstring);
+    {procedure t4thMemory.error(msg: shortstring);
     begin
       initCpu;
       writeln;
       writeln(name,':',msg);
       writeln;
-    end;
+    end;}
 
     procedure t4thMemory.initCpu;
     begin
@@ -645,7 +714,7 @@ type
     var dea: word;
     begin
       dea := found;
-      if dea = 0 then error('Not found');
+      if dea = 0 then error(reNone); //'Not found');
       exec(dea);
     end;
 
@@ -658,7 +727,7 @@ type
       if dea <> 0 then exec(dea)
       else begin
         dea := found;
-        if dea = 0 then error('Not found');
+        if dea = 0 then error(reNone); //'Not found');
         h.wcomp(dea);
       end;
     end;
@@ -674,13 +743,13 @@ type
 
     end;
 
-    procedure t4thMemory.GetNumber;
+    {procedure t4thMemory.GetNumber;
     var n, err: word;
     begin
       val(name,n,err);
-      if err <>0 then error('Not a number');
+      if err <>0 then error(reNone); //'Not a number');
       dstk.Push(n);
-    end;
+    end;}
 
     procedure t4thMemory.exec(dea: word);
     begin
@@ -699,8 +768,76 @@ type
     procedure t4thMemory.tron; begin Debug:=true;    end;
     procedure t4thMemory.troff; begin Debug:=false;  end;
 
+    procedure t4thMemory.strcomp(s3: shortstring);
+    var s1, s2: shortstring;  fnd: integer;   num: word;
+    begin
+      repeat
+        s1 := cutstr(s3,' ');        // get
+        if s1 <> ''  then begin
+
+          fnd := SearchByName(s1);  // search  opcode
+          if fnd < 0 then begin
+            num := t.tick(s1);      // search  name
+            if num = 0 then begin  error(reNone); end;
+            h.align;
+            h.wcomp(num);
+            continue;
+          end;
+
+          if fnd < nibNum then begin  // compile
+            case OpCode(fnd) of
+              retOp: h.PutRelAdr(4,0);
+              jumpOp, ifOp, ifmOp: begin
+                s2 := cutstr(s3,' ');
+                if s2 <> '' then begin
+                  num := t.tick(s2);
+                  if num <> 0 then begin
+                    h.HasAligned(num-here-2);
+                    h.PutRelAdr(fnd,num-here-2);
+                  end else begin
+                    num := strtonum(s2);
+                    h.PutRelAdr(fnd,num);
+                  end;
+                end else h.PutRelAdr(fnd,0);
+              end
+            else h.PutNibble(fnd);
+            end;
+          end else if OpCode(fnd) = numx then begin
+            s2 := cutstr(s3,' ');
+            fnd := strtonum(s2);
+            if fnd <= 0 then dec(fnd,5);
+            fnd := fnd shl 1 ;
+            h.PutRelAdr(4,fnd);
+          end else begin
+            num := 0;
+            case OpCode(fnd) of
+              nopx:  fnd := 0;
+              dropx: fnd := 8;
+              onemx: fnd := 12;
+              colx:  begin
+                  s2 := cutstr(s3,' ');
+                  if s2 = '' then error(reNone);
+                  h.align;
+                  t.defWord(here, s2);
+                  num := 1;
+                end;
+            else begin  // TR0x, TR1x, BRKx, ESCx:
+                fnd := (fnd-20) * 2;
+                h.PutRelAdr(4,fnd);
+                num := 1;
+              end;
+            end;
+            if num = 0 then  h.PutRelAdr(fnd,0);
+          end;
+        end;
+
+      until s3='';
+      h.align;
+    end;
+
     constructor t4thMemory.create(memSize: LongInt); {memSize even}
     const maxbufchars = 128;
+      VAR test: integer;
     begin
       Debug:=false;
       initCpu;
@@ -735,49 +872,38 @@ type
       s.ptr      := t.alloc(maxbufchars);    // tib
       s.nameAdr  := t.alloc(64);
       s.strbuf   := t.alloc(256);
-      t.defWord(0, '');  //h.wcomp($e401);        // literal
+      t.defWord(0, '');
 
       s.maxbuf   := maxbufchars;
       d.SetPointer(fmemory);
 
-      {jumpOp,   xrOp,     pushOp,   SDivOp,     0 1 2 3
-      retOp,    xaOp,     popOp,    PMulOp,      4 5 6 7
-      ifOp,     DUPOp,    rstpOp,   a2dOp,       8 9 a b
-      ifmOp,    JOp,      rldpOp,   nandOp       c d e f }
+      strcomp(': (# @R+ (;  : 1- (1- (; : 1+ DUP NAND (1- : NOT DUP NAND (;');
+      strcomp(': IXEC J     : EXECUTE PUSH (; : XTRON PUSH (TR1;  ');
+      strcomp(': TRON (TR1; : TRACE XTRON     : TROFF (TR0;');
+      strcomp(': (ESC (ESC; : 1STEP EXECUTE   : BRK (BRK;');
+      strcomp(': AND NAND DUP NAND (; : EX POP XR PUSH (;');
+      strcomp(': |SWAP EX : SWAP PUSH XR POP (;');
+      strcomp(': - (1- DUP NAND : + +2/ (DROP  (;');
+      strcomp(': |DROP EX : DROP (DROP : NOP (;');
+      strcomp(': @ PUSH : (@ @R+ : EXIT POP (DROP (;');
+      strcomp(': (SET @R+ (DROP : (! !R+ (JMP EXIT : A! PUSH XA (NOP (JMP EXIT');
+      strcomp(': ! PUSH (JMP (! : (VAR3 @R+ @R+ NAND (DROP : (VAR POP (;');
+      strcomp(': (| @R+ XR PUSH (;');
+      strcomp(': A@ XA POP DUP PUSH XA (;');
+      strcomp(': 0 (@ (NOP');
+      strcomp(': -1 (@ NAND NAND NAND @R+');
+      strcomp(': U* |DROP'); T.defWord(HERE+6,'`(8*');
+      strcomp(': UM* A! 0 `(8* +* +* +* +*  +* +* +* +* (;');
+      T.defWord(HERE+8,'`(8/');
+      strcomp(': U/ |DROP : UM/MOD A! 0 : (U/ `(8/ -/ -/ -/ -/ -/ -/ -/ -/ (;');
+      strcomp(': (BE (;# 0 (ESC');
+      strcomp(': (BK (;# 1 (ESC');
 
-      t.defWord(here, 'IXEC');  h.wcomp($D001);
-      t.defWord(here,'EXECUTE');h.wcomp($2401);
-      t.defWord(here, 'XTRON'); h.wcomp($24FB);
-      t.defWord(here, 'TRON');  h.wcomp($4FFB);
-      t.defWord(here, 'TRACE'); wcomp('XTRON');
-      t.defWord(here, 'TROFF'); h.wcomp($4FF9);
-      t.defWord(here, '(ESC');  h.wcomp($4FFf);
-      t.defWord(here, '1STEP'); wcomp('EXECUTE');
-      t.defWord(here, 'BRK');   h.wcomp($4FFD);
-      t.defWord(here, '(#');    h.wcomp($e401);
-      t.defWord(here, 'NEG');   h.wcomp($C001);
-      t.defWord(here, 'NOT');   h.wcomp($9F41);
-      t.defWord(here, 'AND');   h.wcomp($F9F5);
-      t.defWord(here, 'EX');    h.wcomp($6125);
-      t.defWord(here, 'SWAP');  h.wcomp($2165);
-      t.defWord(here, '-');     wcomp('NEG');
-      t.defWord(here, '+');     h.wcomp($B001);
-      t.defWord(here, 'DROP');  h.wcomp($8001);
-      t.defWord(here, 'NOP');   h.wcomp($4001);
-      t.defWord(here, '@');     h.wcomp($2001);
-      t.defWord(here, '(@');    h.wcomp($E001);
-      t.defWord(here, 'EXIT');  h.wcomp($6801);   h.wcomp($4001);
-      t.defWord(here, '(SET');  h.wcomp($E801);
-      t.defWord(here, '(!');    h.wcomp($A0f9);
-      t.defWord(here, '!');     h.wcomp($20fd);
-      t.defWord(here, '(VAR3'); h.wcomp($EEF9);
-      t.defWord(here, '(VAR');  h.wcomp($6401);
-      // 0                     -1               -1019          1023
-      h.wcomp($4Ff7); h.wcomp($4FF5); h.wcomp($4801); h.wcomp($47FF);
-      h.wcomp($4003); h.wcomp($4005); h.wcomp($4007); h.wcomp($4009);
-      t.defWord(here, '(|');  h.wcomp($E125);
-      h.wcomp($4005); h.wcomp($4007); h.wcomp($4009);
+      strcomp(': EMIT! (# (BE (SET (@ : EMIT (BE (;');
+      strcomp(': EMIT! (# (BK (SET (@ : EMIT (BK (;');
 
+      strcomp(': TEST');
+      for test := 15 downto 0 do h.PutNibble(test);
 
     end;
 

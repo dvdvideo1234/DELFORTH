@@ -23,8 +23,9 @@ type
   pword = ^word;
   pbyte = ^byte;
 
-  function  fitIn12b(ra: smallint): byte;
-  function  RelAdr(inw: word; Mask: word): smallint;
+  function  strToNum(s: shortstring): longint;
+  function  cutStr(var s: shortstring; del: char): shortstring;
+  function  LongRel(inw, Mask: longint): longint;
   function  NToHex(n: dword; chars: byte): str15;
   function  LongToHex(n: dword): str15;
   function  NumberToStr(n: longint; chars: byte = 14; base: byte = 10): str39;
@@ -40,22 +41,27 @@ type
   function  drcLw(var s, d: word; cr: boolean = false): boolean;
   function  incw(var acc: word; w: word): boolean;
 
+  var ssz: shortstring;
+
 implementation
 
-  function fitIn12b(ra: smallint): byte;
-  var mask: word;
-  begin mask := $f000;
-    result := 4;
-    repeat
-      if not ((mask and ra) in [mask,0]) then exit;
-      dec(result);
-      mask := mask shr nibble;
-    until result = 0;
+  function strToNum(s: shortstring): longint;
+  var err: word;
+  begin
+    val(s,result,err);
   end;
 
-  function  RelAdr(inw: word; Mask: word): smallint;  {mask power of 2}
-  begin result := 0; if Mask < 2 then exit;
-    result := (inw and pred(Mask)) - (inw and Mask);
+  function cutStr(var s: shortstring; del: char): shortstring;
+  var p: integer;
+  begin
+    p := pos(del,s);
+    if p = 0 then begin
+      result := s;
+      s := '';
+      exit;
+    end;
+    result := copy(s,1,p-1);
+    delete(s,1,p);
   end;
 
   function  byteTobin(n: byte): str15;
@@ -70,6 +76,25 @@ implementation
     mov al,0
     rcl al,1
   end;
+
+{function  RelAdr(inw: word; Mask: word): smallint;  mask power of 2
+begin result := 0; if Mask < 2 then exit;
+  result := (inw and pred(Mask)) - (inw and Mask);
+end; }
+
+function  LongRel(inw, Mask: longint): longint;  assembler; nostackframe;
+label nodec;
+asm
+    shr   edx,1
+    shl   edx,1
+    mov   ecx,edx
+    jcxz  nodec
+    dec   edx
+    and   ecx,eax
+nodec:
+    and   eax,edx
+    sub   eax,ecx
+end;
 
   function  drcRw(var s,d:word; cr: boolean): boolean;assembler; nostackframe;
   asm
