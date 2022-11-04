@@ -24,6 +24,7 @@ type
   pbyte = ^byte;
 
   function  strToNum(s: shortstring): longint;
+  procedure stradd(var sd: shortstring; ss: shortstring);
   function  cutStr(var s: shortstring; del: char): shortstring;
   function  LongRel(inw, Mask: longint): longint;
   function  NToHex(n: dword; chars: byte): str15;
@@ -44,6 +45,13 @@ type
   var ssz: shortstring;
 
 implementation
+
+  procedure stradd(var sd: shortstring; ss: shortstring);
+  begin
+    if sd = ''
+      then sd := ss
+      else sd := sd + ' ' + ss;
+  end;
 
   function strToNum(s: shortstring): longint;
   var err: word;
