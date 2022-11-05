@@ -25,7 +25,7 @@ type
 
     Procedure Push(w: word);
     function  pop: word;
-    Procedure ShowTop3;
+    function  ShowTop3: shortstring;
   end;
 
   tAbstractMemoryPointer = object
@@ -71,7 +71,7 @@ type
   TDictReg = object(TwordPointer)
     function  tick(wrd: ShortString): word;
     function  alloc(w: word): word;
-    procedure putbyte(b: byte);
+    procedure putByte(b: byte);
     procedure putWord(w: word);
     function  FindWord(where: word; wrd: shortstring): word;
     function  FindW(what: word): word;
@@ -133,20 +133,19 @@ type
     procedure warning(msg: shortstring);
     procedure EvalStr(st:  shortstring);  {text evaluator}
     procedure Eval(buf, len: word);  {text evaluator}
-    procedure doCall(adr: word);
-    procedure execute;
-    procedure doer(opind: byte);
 
     procedure comma;
     procedure readLine;
-    procedure brk;
     procedure NewItem;
     procedure Parsing;
     procedure emit;
     procedure key;
     procedure key_pressed;
+
+    procedure brk;
     procedure tron;
     procedure troff;
+    procedure EscX;
 
     destructor Done;
     constructor create(memSize: longint);
@@ -157,6 +156,9 @@ type
     procedure wcomp(st:  shortstring);
     procedure strcomp(s3: shortstring);
     procedure Words;
+    procedure doCall(adr: word);
+    procedure execute;
+    procedure doer(opind: byte);
 
     property Off: boolean read xflag write xflag;
     property Debug: boolean read xdbg write xdbg;
@@ -170,8 +172,7 @@ type
 
   end;
 
-var
-  cpu: t4thMemory;
+//var cpu: t4thMemory;
 
 implementation
 
@@ -367,11 +368,13 @@ type
     inc(sp);
   end;
 
-  Procedure tWordStack.ShowTop3;
+  function  tWordStack.ShowTop3: shortstring;
   begin
-    write(wordtohex(stackWords[sp]), ' ');
-    write(wordtohex(next), ' ');
-    write(wordtohex(top), ' ');
+    result := '';
+    strAdd(result,bytetohex(self.sp));
+    strAdd(result,wordtohex(stackWords[sp]));
+    strAdd(result,wordtohex(next));
+    strAdd(result,wordtohex(top));
   end;
 
 
@@ -615,29 +618,6 @@ type
       result := pstr(mem[s.nameAdr])^;
     end;
 
-    procedure t4thMemory.doer(opind: byte);
-    begin
-      OpArr[opind]; {unpack & execute opcode}
-    end;
-
-    procedure t4thMemory.execute;
-    begin
-      if p.nib = 0 then
-        if not p.nextWord then begin  { get next cell }
-          rstk.push(pc); pc :=  p.last;  {nesting}
-          exit;
-        end;
-      doer(p.getNibble); {unpack & execute opcode}
-    end;
-
-    procedure t4thMemory.doCall(adr: word);
-    begin
-      InitPc(adr);   off := false;
-      repeat
-        execute;
-      until off;
-    end;
-
     procedure t4thMemory.comma;
     begin
       h.wcomp(dstk.pop);
@@ -753,16 +733,50 @@ type
       doCall($202); {execute word and return}
     end;
 
-    procedure t4thMemory.brk;  begin   xflag := true;  end;
-
     procedure t4thMemory.emit;  begin  write(char(dstk.pop));  end;
 
-    procedure t4thMemory.key;  var c: char;
-    begin c := readkey; dstk.Push(byte(c));  end;
+    procedure t4thMemory.key;   begin dstk.Push(byte(readkey));  end;
 
     procedure t4thMemory.key_pressed; begin dstk.Push(byte(keypressed));  end;
-    procedure t4thMemory.tron; begin Debug:=true;    end;
+    procedure t4thMemory.tron;  begin Debug:=true;    end;
     procedure t4thMemory.troff; begin Debug:=false;  end;
+    procedure t4thMemory.EscX;  begin doer((dstk.pop and 31) + 20); end;
+    procedure t4thMemory.brk;   begin {rstk.Push(pc);}  xflag := true;  end;
+
+    procedure t4thMemory.doer(opind: byte);
+    var lastd: word;
+    begin
+      if debug then begin
+        lastd := d.ptr;
+        d.ptr := p.ptr-2;
+        if p.nib = 3 then  self.dumpWords(1);
+        d.cr;
+        d.dot(' RS: ' + rstk.ShowTop3 + '  DS: ' +  dstk.ShowTop3);
+        d.dot('  OP: ' + bytetohex(opind)+' ');
+        if opind <20 then  d.dot(opNames[opind]);
+        d.ptr:=lastd;
+        readkey;
+      end;
+      OpArr[opind]; {unpack & execute opcode}
+    end;
+
+    procedure t4thMemory.execute;
+    begin
+      if p.nib = 0 then
+        if not p.nextWord then begin  { get next cell }
+          rstk.push(pc); pc :=  p.last;  {nesting}
+          exit;
+        end;
+      doer(p.getNibble); {unpack & execute opcode}
+    end;
+
+    procedure t4thMemory.doCall(adr: word);
+    begin
+      InitPc(adr);   off := false;
+      repeat
+        execute;
+      until off;
+    end;
 
     procedure t4thMemory.strcomp(s3: shortstring);
     var s1, s2: shortstring;  fnd: integer;   num: word;
@@ -833,21 +847,38 @@ type
 
     constructor t4thMemory.create(memSize: LongInt); {memSize even}
     const maxbufchars = 128;
-      VAR test: integer;
     begin
       Debug:=false;
       initCpu;
 
       setlength( OpArr,24);
+      OpArr[ 0] := @brk;
+      OpArr[ 1] := @brk;
+      OpArr[ 2] := @brk;
+      OpArr[ 3] := @brk;
+      OpArr[ 4] := @brk;
+      OpArr[ 5] := @brk;
+      OpArr[ 6] := @brk;
+      OpArr[ 7] := @brk;
+      OpArr[ 8] := @brk;
+      OpArr[ 9] := @brk;
+      OpArr[10] := @brk;
+      OpArr[11] := @brk;
+      OpArr[12] := @brk;
+      OpArr[13] := @brk;
+      OpArr[14] := @brk;
+      OpArr[15] := @brk;
 
-      OpArr[17] := @brk;
-      OpArr[18] := @key;
-      OpArr[19] := @emit;
-      OpArr[20] := @Colon;
-      OpArr[21] := @semicolon;
-      OpArr[22] := @tron;
-      OpArr[23] := @troff;
+      {extended codes}
+      OpArr[16] := @troff;
+      OpArr[17] := @tron;
+      OpArr[18] := @brk;
+      OpArr[19] := @EscX;
 
+      {escape codes}
+      OpArr[20] := @emit;
+      OpArr[21] := @key;
+      OpArr[22] := @semicolon;
       //defopx(@key, 'KEY');              defopx(@emit, 'EMIT');
       //defopx(@NewItem, ':=');           defopx(@Parsing, 'WORD');
 
@@ -926,11 +957,11 @@ type
 
 initialization
 
-  cpu.Create( $10000);
+  //cpu.Create( $10000);
 
 finalization
 
-  cpu.Done;
+  //cpu.Done;
 
 end.
 

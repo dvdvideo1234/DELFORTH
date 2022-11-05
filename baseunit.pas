@@ -23,8 +23,10 @@ type
   pword = ^word;
   pbyte = ^byte;
 
+  function  ascPack(s, d: pchar; l: longint): longint;
+  function  ascUnPack(s, d: pchar; l: longint): longint;
   function  strToNum(s: shortstring): longint;
-  procedure stradd(var sd: shortstring; ss: shortstring);
+  procedure stradd(var sd: shortstring; ss: shortstring; del: char = ' ');
   function  cutStr(var s: shortstring; del: char): shortstring;
   function  LongRel(inw, Mask: longint): longint;
   function  NToHex(n: dword; chars: byte): str15;
@@ -46,11 +48,44 @@ type
 
 implementation
 
-  procedure stradd(var sd: shortstring; ss: shortstring);
+  function ascPack(s, d: pchar; l: longint): longint;
+  var oldd: pchar; ch : char; c: byte absolute ch;
+    procedure getc; begin ch := s^; inc(s); dec(l); end;
+    procedure setc; begin d^ := ch; inc(d);   end;
+  begin  oldd := d;
+    while l > 0 do begin  getc;
+      case ch of
+        '"': if l > 0  then begin getc; setc;  end;
+        '^': if l > 0  then begin getc; c := c and 31; setc; end;
+        '~': if oldd <> d then  byte((d-1)^) := byte((d-1)^) xor $80;
+        '_': begin ch := ' '; setc; end;
+      else setc;
+      end;
+    end;
+    result := d - oldd;
+  end;
+
+  function ascUnPack(s, d: pchar; l: longint): longint;
+  var oldd: pchar; ch : char; c: byte absolute ch;  hibit: boolean;
+  begin  oldd := d;
+    for l := l downto 1 do begin  ch := s^; inc(s);
+      hibit := c > 127; c :=  c and 127;
+      case ch of
+        #0..#31: begin d^ := '^'; inc(d);  c := c or ord('@'); end;
+        '~','"','^','_': begin d^ := '"'; inc(d);   end;
+        ' ': ch := '_';
+      end;
+      d^ := ch; inc(d);
+      if hibit then begin d^ := '~'; inc(d);   end;
+    end;
+    result := d - oldd;
+  end;
+
+  procedure stradd(var sd: shortstring; ss: shortstring; del: char = ' ');
   begin
     if sd = ''
       then sd := ss
-      else sd := sd + ' ' + ss;
+      else sd := sd + del + ss;
   end;
 
   function strToNum(s: shortstring): longint;
@@ -83,6 +118,14 @@ implementation
     add [eax],dx
     mov al,0
     rcl al,1
+  end;
+
+  function  swapw(var s, d: word): word;assembler; nostackframe;
+  asm
+    xchg  eax,ecx
+    mov   ax,[ecx]
+    xchg  ax,[edx]
+    xchg  ax,[ecx]
   end;
 
 {function  RelAdr(inw: word; Mask: word): smallint;  mask power of 2
@@ -268,13 +311,5 @@ end; end;
   end; end;
 
 end.
-
-function  swapw(var s, d: word): word;  begin asm
-  mov   edx,d
-  mov   ecx,s
-  mov   ax,[ecx]
-  xchg  ax,[edx]
-  xchg  ax,[ecx]
-end; end;
 
 

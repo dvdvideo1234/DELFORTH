@@ -57,14 +57,16 @@ uses
     end;
 
     procedure  t4thCPU.RET;    {escape codes 128}
-    var anum: word;
+    var anum: smallint;
     begin
-      if p.shift<> 0 then begin
-        anum := pred(pred(wTest[p.nib]) and (p.last  shr 1));
-        if anum < 8 then OpArr[anum or 16]  {execute Extended opcode}
-        else begin                 {max real value of numbers}
-          dstk.Push(anum-9);
-          p.nib:= 0;  {0..118, 0..2038}
+      with p do
+      if shift<> 0 then begin
+        anum := RelAdr div 2;
+        if (anum+4) in [0..3] then doer(20 + anum) {execute Extended opcode}
+        else  begin
+          if anum <0  then  INC(anum,5);
+          dstk.Push(anum);
+          p.nib:= 0;  {-1019..1023}
           exit;
         end;
       end;
@@ -169,45 +171,29 @@ uses
     end;
 
 
-    procedure t4thCPU.InitBaseOperations;
-       var ind: integer;
-       procedure addWord(code: TProcType);
-       begin
-         opArr[ind] := code;
-         inc(ind);
-       end;
+procedure t4thCPU.InitBaseOperations;
+begin
+  {
+  '(JMP',  'XR',   'PUSH', '-/',
+  '(;',    'XA',   'POP',  '+*',
+  '(IF',   'DUP',  '!R+',  '+2/',
+  '(IF-',  'J',    '@R+',  'NAND',
+  '(TR0;', '(TR1;','(BRK;','(ESC;',
 
-       procedure defop(code: TProcType);
-       begin
-         t.defWord(ind, opNames[ind]);
-         addWord(code);
-       end;
+  OpArr[ 0] := @jump; OpArr[ 1] := @xr;   OpArr[ 2] := @push; OpArr[ 3] := @SDiv;
+  OpArr[ 4] := @ret;  OpArr[ 5] := @xa;   OpArr[ 6] := @pop;  OpArr[ 7] := @PMul;
+  OpArr[ 8] := @_if;  OpArr[ 9] := @DUP;  OpArr[10] := @rstp; OpArr[11] := @add2div;
+  OpArr[12] := @ifm;  OpArr[13] := @j;    OpArr[14] := @rldp; OpArr[15] := @nand;
 
-       procedure defopx(code: TProcType; name: string);
-       begin
-         t.defWord(here, name);
-         dstk.push((succ(ind-16) shl 1)+realRet);
-         comma;
-         addWord(code);
-       end;
+  OpArr[16] := @troff;OpArr[17] := @tron; OpArr[19] := @brk;   OpArr[19] := @EscX;
+  }
 
-   begin
-     inherited create(memSize);
-
-     t.defWord(0,'');      // end of vocabulary
-
-     ind  := 0;
-     defop(@jump);     defop(@xr);     defop(@push);     defop(@SDiv);
-     defop(@ret);      defop(@xa);     defop(@PMul);     defop(@PMul);
-     defop(@_if);      defop(@DUP);    defop(@rstp);     defop(@add2div);
-     defop(@ifm);      defop(@j);      defop(@rldp);     defop(@nand);
-
-     {extendedOps   }
+  {extendedOps
      defopx(@brk, 'BRK');              defopx(@comma, ',');
      defopx(@key, 'KEY');              defopx(@emit, 'EMIT');
      defopx(@readLine, 'READLINE');
      defopx(@NewItem, ':=');           defopx(@Parsing, 'WORD');
-
+     }
      //defopx(@find, 'FIND');
      //procedure NewItem;     procedure Parsing;
      //procedure words;
