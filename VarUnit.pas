@@ -23,8 +23,7 @@ type
 
   end;
 
-var
-  cpu : t4thcpu;
+//var  cpu : t4thcpu;
 
 
 implementation
@@ -39,7 +38,7 @@ uses
 
     procedure  t4thCPU.jump;
     begin
-        if p.nib = 0 then exit;
+        //if p.nib = 0 then exit;
         pc := pc + p.RelAdr;
     end;
 
@@ -131,38 +130,32 @@ uses
   ; NAND +2/ +* -/      MATH & LOGIC
   }
     procedure  t4thCPU.nand;
-    var temp: word;
     begin
-      with dstk do begin
-        temp := pop;
-        top := not (temp and top);
-      end;
+      with dstk do top := not (pop and top);
     end;
 
     procedure  t4thCPU.add2div;
     var res: word;
     begin
       with dstk do begin
-        res := ord(incw(next,top));
-        top := next;
-        DrcRw(res, top);
+        res := avg(top, next);
+        inc(next,top);
+        top := res;
       end;
     end;
 
    procedure  t4thCPU.PMul;
-   var fa: boolean;
    begin
-     with dstk do begin
-        fa := odd(next);
-        if fa then fa := incw(top,areg);
-        DrcRw(top,next,fa);
-     end;
+     with dstk do
+       if odd(next)
+         then rcRw(next,rcrw(top,incw(top,areg)))
+         else rcRw(next,rcrw(top));
    end;
 
     procedure  t4thCPU.SDiv;
     begin
       with dstk do begin
-        drclw(next,top);
+        rclw(top,rclw(next));
         if top >= areg then begin
           dec(top,areg);
           inc(next);
@@ -207,12 +200,12 @@ begin
 
 initialization
 
-  cpu.Create( $10000);
-  cpu.InitBaseOperations;
+  //cpu.Create( $10000);
+  //cpu.InitBaseOperations;
 
 finalization
 
-  cpu.Done;
+  //cpu.Done;
 
 end.
 

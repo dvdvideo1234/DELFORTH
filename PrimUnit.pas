@@ -36,6 +36,7 @@ uses
   VarUnit
   ;
 
+  {
   function  FindPrim(wrd: string): shortint;
   var
     i: OpCodes;
@@ -47,8 +48,10 @@ uses
       end;
     FindPrim := -1;
   end;
+  }
 
   {$asmMode intel}
+  {
   function  _incw(var acc: word; w: word): boolean; begin
   asm
     mov eax,acc ;
@@ -65,6 +68,7 @@ uses
     xchg  ax,[edx]
     xchg  ax,[ecx]
   end; end;
+
 
   function  _drop: word;
   begin
@@ -93,10 +97,11 @@ uses
     rstack[rsp] := rtop;
     rtop := adr;
   end;
+  }
 
 {
 ; (JUMP (; (IF (IF-   CONTROLS
-}
+
   function    _RelAdr(cell: word; nib: byte): word;
   const
     wAnd:  word4 = (0,$e,$fe, $ffe);
@@ -182,5 +187,6 @@ uses
       inc(shiftreg[0]);
     end;
   end;
+  }
 
 end.

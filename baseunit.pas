@@ -23,6 +23,7 @@ type
   pword = ^word;
   pbyte = ^byte;
 
+  procedure putc(what: char; var where: pchar);
   function  ascPack(s, d: pchar; l: longint): longint;
   function  ascUnPack(s, d: pchar; l: longint): longint;
   function  strToNum(s: shortstring): longint;
@@ -40,26 +41,43 @@ type
   function  divmod(var w: dword; d: dword): dword;
   function  Avg(a, b: Longint): Longint;
 
-  function  drcRw(var s, d: word; cr: boolean = false): boolean;
-  function  drcLw(var s, d: word; cr: boolean = false): boolean;
+  function  rcRw(var d: word; carry: boolean = false): boolean;
+  function  rcLw(var d: word; carry: boolean = false): boolean;
   function  incw(var acc: word; w: word): boolean;
 
   var ssz: shortstring;
 
 implementation
 
+  {$asmMode intel}
+  procedure putc(what: char; var where: pchar);assembler; nostackframe;
+  {$ifdef SYSTEMINLINE}inline;{$endif}
+  asm
+     mov    [edx],al
+     inc    dword ptr [edx]
+  end;
+
+  function  DigToChar(n: byte): char;  assembler; nostackframe;
+  label noInc;
+  asm  // if n > 9 then inc(n, 7);   result := char(n+byte('0'));
+     cmp   al,10
+     jl    noInc
+     add   al,7
+  noInc:
+     add   al,'0'
+  end;
+
   function ascPack(s, d: pchar; l: longint): longint;
   var oldd: pchar; ch : char; c: byte absolute ch;
     procedure getc; begin ch := s^; inc(s); dec(l); end;
-    procedure setc; begin d^ := ch; inc(d);   end;
   begin  oldd := d;
     while l > 0 do begin  getc;
       case ch of
-        '"': if l > 0  then begin getc; setc;  end;
-        '^': if l > 0  then begin getc; c := c and 31; setc; end;
+        '"': if l > 0  then begin getc; putc(ch,d);  end;
+        '^': if l > 0  then begin getc; c := c and 31; putc(ch,d);; end;
         '~': if oldd <> d then  byte((d-1)^) := byte((d-1)^) xor $80;
-        '_': begin ch := ' '; setc; end;
-      else setc;
+        '_': begin ch := ' '; putc(ch,d);; end;
+      else putc(ch,d);;
       end;
     end;
     result := d - oldd;
@@ -71,12 +89,12 @@ implementation
     for l := l downto 1 do begin  ch := s^; inc(s);
       hibit := c > 127; c :=  c and 127;
       case ch of
-        #0..#31: begin d^ := '^'; inc(d);  c := c or ord('@'); end;
-        '~','"','^','_': begin d^ := '"'; inc(d);   end;
+        #0..#31: begin putc('^',d);  c := c or ord('@'); end;
+        '~','"','^','_':  putc('"',d);
         ' ': ch := '_';
       end;
-      d^ := ch; inc(d);
-      if hibit then begin d^ := '~'; inc(d);   end;
+      putc(ch,d);
+      if hibit then putc('~',d);
     end;
     result := d - oldd;
   end;
@@ -112,20 +130,18 @@ implementation
     result := NumberToStr(n or 256, 8, 2);
   end;
 
-  {$asmMode intel}
   function  incw(var acc: word; w: word): boolean;assembler; nostackframe;
+  {$ifdef SYSTEMINLINE}inline;{$endif}
   asm
     add [eax],dx
     mov al,0
     rcl al,1
   end;
 
-  function  swapw(var s, d: word): word;assembler; nostackframe;
+  function  XCHGw(WHAT: WORD; var d: word): word; assembler; nostackframe;
+  {$ifdef SYSTEMINLINE}inline;{$endif}
   asm
-    xchg  eax,ecx
-    mov   ax,[ecx]
     xchg  ax,[edx]
-    xchg  ax,[ecx]
   end;
 
 {function  RelAdr(inw: word; Mask: word): smallint;  mask power of 2
@@ -147,25 +163,26 @@ nodec:
     sub   eax,ecx
 end;
 
-  function  drcRw(var s,d:word; cr: boolean): boolean;assembler; nostackframe;
+  function  rcRw(var d: word; carry: boolean): boolean;assembler; nostackframe;
+  {$ifdef SYSTEMINLINE}inline;{$endif}
   asm
-    xchg  ecx,eax
+    xchg  eax,edx
     shr   al,1
-    rcr   word ptr [ecx],1
     rcr   word ptr [edx],1
     rcl   al,1
   end;
 
-  function  drcLw(var s,d: word; cr:boolean): boolean;assembler; nostackframe;
+  function  rcLw(var d: word; carry: boolean = false): boolean;assembler; nostackframe;
+  {$ifdef SYSTEMINLINE}inline;{$endif}
   asm
-    xchg  ecx,eax
+    xchg  eax,edx
     shr   al,1
-    rcl   word ptr [ecx],1
     rcl   word ptr [edx],1
     rcl   al,1
   end;
 
   function Avg(a, b: Longint): Longint; assembler; nostackframe;
+  {$ifdef SYSTEMINLINE}inline;{$endif}
   asm
     add   eax,edx
     rcr   eax,1
@@ -204,12 +221,6 @@ function  NToHex(n: dword; chars: byte): str15;
     if (chars in [1..7])
       then  result := NumberToStr(n or $80000000, chars, 16)
       else  result := LongToHex(n);
-  end;
-
-  function  DigToChar(n: byte): char;
-  begin
-    if n > 9 then inc(n, 7);
-    result := char(n+byte('0'));
   end;
 
   function  byteToHex(n: byte): str3;
