@@ -60,7 +60,8 @@ uses
     begin
       with p do
       if shift<> 0 then begin
-        anum := RelAdr div 2;
+        anum := RelAdr;
+        anum := anum div 2;
         if (anum+4) in [0..3] then doer(20 + anum) {execute Extended opcode}
         else  begin
           if anum <0  then  INC(anum,5);
@@ -104,7 +105,7 @@ uses
     end;
 
   {
-  ; push pop J DUP      STACK
+   push pop J DUP      STACK
   }
     procedure  t4thCPU.push;
     begin

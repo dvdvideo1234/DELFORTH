@@ -158,7 +158,7 @@ type
     //procedure error(msg: shortstring);
     procedure warning(msg: shortstring);
     procedure EvalStr(st:  shortstring);  {text evaluator}
-    procedure Eval(buf, len: word);  {text evaluator}
+    procedure Eval(buf, len: word);   {text evaluator}
 
     procedure comma;
     procedure readLine;
@@ -185,6 +185,7 @@ type
     procedure doCall(adr: word);
     procedure execute;
     procedure doer(opind: byte);
+    procedure GetHere;
 
     property Off: boolean read xflag write xflag;
     property Debug: boolean read xdbg write xdbg;
@@ -424,9 +425,7 @@ uses
 
   function  TpcReg.RelAdr: word;
   begin
-    //if nib = 0 then exit(0);
-    //result := (last and pred(wTest[nib])) - (last and (wTest[nib]));
-    result := LongRel(last, wTest[nib]);
+    result := LongRel(last , wTest[nib]);
   end;
 
   {TParsReg}
@@ -739,10 +738,12 @@ uses
     procedure t4thMemory.key;   begin dstk.Push(byte(readkey));  end;
 
     procedure t4thMemory.key_pressed; begin dstk.Push(byte(keypressed));  end;
-    procedure t4thMemory.tron;  begin Debug:=true;    end;
+
     procedure t4thMemory.troff; begin Debug:=false;  end;
-    procedure t4thMemory.EscX;  begin doer((dstk.pop and 31) + 20); end;
+    procedure t4thMemory.tron;  begin Debug:=true;    end;
     procedure t4thMemory.brk;   begin {rstk.Push(pc);}  xflag := true;  end;
+    procedure t4thMemory.EscX;  begin doer((dstk.pop and 31) + 20); end;
+    procedure t4thMemory.GetHere;  begin Dstk.Push(Here); end;
 
     procedure t4thMemory.doer(opind: byte);
     var lastd: word;
@@ -877,7 +878,7 @@ uses
       OpArr[19] := @EscX;
 
       {escape codes}
-      OpArr[20] := @emit;
+      OpArr[20] := @GetHere;
       OpArr[21] := @key;
       OpArr[22] := @semicolon;
       //defopx(@key, 'KEY');              defopx(@emit, 'EMIT');

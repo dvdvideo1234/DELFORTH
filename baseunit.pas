@@ -59,7 +59,7 @@ implementation
 
   function  DigToChar(n: byte): char;  assembler; nostackframe;
   label noInc;
-  asm  // if n > 9 then inc(n, 7);   result := char(n+byte('0'));
+  asm   // if n > 9 then inc(n, 7);   result := char(n+byte('0'));
      cmp   al,10
      jl    noInc
      add   al,7

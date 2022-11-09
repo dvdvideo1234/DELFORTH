@@ -10,6 +10,7 @@ uses
     tTestCPU = object (t4thCPU)
       oldrsp, olddsp: word;
       opCode: tOpCode;
+      nibnum: byte;
 
       procedure TestAllOps;
       procedure Testjump;
@@ -31,7 +32,7 @@ uses
       procedure TestRet;
 
       procedure getStack(op: topcode);
-      procedure TestOp(f: boolean);
+      procedure TestOp(f: boolean; msg: string = 'Test');
       procedure TestStack;
       procedure mini(apc, alast, anib: word);
       function  shiftreg: longint;
@@ -52,6 +53,7 @@ uses
     pc := apc;
     p.last := alast;
     p.nib := anib;
+    nibnum:= anib;
   end;
 
   function  tTestCPU.shiftreg: longint;
@@ -67,20 +69,19 @@ uses
     oldrsp  := rstk.sp;
     olddsp  := dstk.sp;
     opCode  := op;
+    nibnum  := p.nib ;
   end;
 
-  procedure tTestCPU.TestOp(f: boolean);
+  procedure tTestCPU.TestOp(f: boolean; msg: string = 'Test');
   begin
-    if f then
-      writeln('Test ',opNames[ord(opCode)],' ',p.nib,' ',p.shift);
+    if f then with dstk do
+      writeln(msg,' ',opNames[ord(opCode)],' ',nibnum,' ',next, ' ' , top);
   end;
 
   procedure tTestCPU.TestStack;
   begin
-   if olddsp <> dstk.sp
-     then writeln('TestDsp ',opNames[ord(opCode)]);
-   if oldrsp <> rstk.sp
-     then writeln('TestRsp ',opNames[ord(opCode)]);
+   TestOp( olddsp <> dstk.sp,'Dsp');
+   TestOp( oldrsp <> rstk.sp,'Rsp');
   end;
 
   procedure tTestCPU.Testpush;
@@ -119,16 +120,10 @@ uses
     TestStack;
   end;
 
-
-  procedure tTestCPU.TestRet;
-  begin
-
-  end;
-
   procedure tTestCPU.Testjump;
   begin
     getStack(jumpOp);
-    mini($100, $246, 3); jump;    TestOp((pc<>$346) or (p.nib<>0));
+    mini($100, $246,  3); jump;    TestOp((pc<>$346) or (p.nib<>0));
     mini($100, $246, 2); jump;    TestOp((pc<>$146) or (p.nib<>0));
     mini($100, $246, 1); jump;    TestOp((pc<>$106) or (p.nib<>0));
     mini($100, $246, 0); jump;    TestOp((pc<>$100) or (p.nib<>0));
@@ -243,16 +238,16 @@ uses
   begin   getStack(PMulOp);
     dstk.Push($fff1);  dstk.Push( 0); areg := $ff16;
     with longrec(shifter) do begin
-       hi := dstk.top;
-       lo := dstk.next;
-       fa := odd(shifter); if fa then fa := incw(hi, areg);
-       shifter   := shifter  shr 1;
-       if fa then inc(hi,$8000);
-       PMul;
-       TestOp(shifter <> shiftreg);
-       PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;
-       cardinal(shifter) := $ff16fff1;
-       TestOp(longint(lo * hi) <> shiftreg);
+      hi := dstk.top;
+      lo := dstk.next;
+      fa := odd(shifter); if fa then fa := incw(hi, areg);
+      shifter   := shifter  shr 1;
+      if fa then inc(hi,$8000);
+      PMul;
+      TestOp(shifter <> shiftreg);
+      PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;PMul;
+      cardinal(shifter) := $ff16fff1;
+      TestOp(longint(lo * hi) <> shiftreg);
     end;
     dstk.pop;
     dstk.pop;
@@ -270,28 +265,77 @@ uses
         incw(hi, (not areg) + 1);
         inc(lo);
       end;
-       SDiv;    TestOp(shifter <> shiftreg);
-       SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;
-       lo := $bfff4 div areg;    hi := $bfff4 mod areg;
+      SDiv;    TestOp(shifter <> shiftreg);
+      SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;SDiv;
+      lo := $bfff4 div areg;    hi := $bfff4 mod areg;
     end;
     TestOp(shifter <> shiftreg);
     dstk.pop;
     dstk.pop;
     TestStack;
   end;
-   //function searchByName(opname: shortstring): shortint;
 
   procedure tTestCPU.TestFindPrim;
   var i: integer;
-  begin    getStack(SDivOp); //nibNum := 250;
+  begin  p.nib := 250;  getStack(SDivOp);
     for i := 0 to ord(numx) do
       TestOp(searchByName(opNames[i]) <> shortint(i));
     TestOp(searchByName('Op') >= 0);
     TestStack;
   end;
 
+procedure tTestCPU.TestRet;
+  var anu: word;
+    function ntow(anum: smallint; nb, ni: byte): word;
+    begin
+      anu := anum;
+      nibnum := ni;
+      nb := nb and 3;
+      p.nib:= nb;
+      result := 0;
+      if anum <= 0 then dec(anum,5);
+      anum := anum * 2 ;
+      while nb <> 0 do begin
+        result := result shl 4;
+        result := result or (anum shr ((nb-1) shl 2));
+        dec(nb);
+      end;
+      p.last := result;
+    end;
+
+  begin
+    getStack(retop);
+    nibnum := 4; p.nib:=3;  anu := $10; rstk.Push(anu);  p.shift:=0;
+                      ret;  TestOp((pc  <> anu)  or (p.nib<>0));   TestStack;
+    p.shift:= 1;
+    ntow($200,3,3);   ret;  TestOp((dstk.pop<>anu) or (p.nib<>0)); TestStack;
+    ntow($20,2,5);    ret;  TestOp((dstk.pop<>anu) ); TestStack;
+    ntow(2,1,6);      ret;  TestOp((dstk.pop<>anu) ); TestStack;
+    ntow(0,3,7);      ret;  TestOp(((dstk.pop)<>anu)); TestStack;
+    ntow(-1019,3,8);  ret;  TestOp(((dstk.pop)<>anu)); TestStack;
+    ntow(-59,2,9);    ret;  TestOp(((dstk.pop)<>anu)); TestStack;
+    ntow(1,1,10);     ret;  TestOp(((dstk.pop)<>anu)); TestStack;
+    ntow(1023,3,11);  ret;  TestOp(((dstk.pop)<>anu)); TestStack;
+    ntow(63,2,12);    ret;  TestOp(((dstk.pop)<>anu)); TestStack;
+    ntow(3,1,13);     ret;  TestOp(((dstk.pop)<>anu)); TestStack;
+    nibnum := 14;
+    Debug := false;  anu := $10; rstk.Push(anu);  p.last := 8; p.nib:=1;
+    ret;  TestOp((pc  <> anu)  or (p.nib<>0) or Debug); TestStack;
+    nibnum := 15; Debug := false;
+    anu := $10; rstk.Push(anu);  p.last := 10; p.nib:=1;
+    ret;  TestOp((pc  <> anu)  or (p.nib<>0) or (not Debug));  TestStack;
+    Debug := false;  Off := false;  nibnum := 16;
+    anu := $10; rstk.Push(anu);  p.last := 12; p.nib:=1;
+    ret;  TestOp((pc  <> anu)  or (p.nib<>0) or (not off));  TestStack;
+    Off := false;  nibnum := 17;
+    anu := $10; rstk.Push(anu);  p.last := 14; p.nib:=1;  Dstk.Push(0); ret;
+    TestOp((pc  <> anu)  or (p.nib<>0) or (dstk.pop <> here));  TestStack;
+
+  end;
+
   procedure tTestCPU.TestAllOps;
   begin
+   writeln('Begin test');
    Testjump;
    Test_if;
    Testifm;
@@ -309,12 +353,14 @@ uses
    TestSDiv;
    TestFindPrim;
    TestRet;
+   writeln('End test')
   end;
 
 initialization
 
   cpu.Create( $10000);
   cpu.InitBaseOperations;
+  cpu.TestAllOps;
 
 finalization
 
