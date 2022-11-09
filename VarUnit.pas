@@ -7,8 +7,30 @@ uses
   ,TypeUnit;
 
 type
+  nodeType = ( ntWord, ntPrimitive, ntConst, ntVar,
+            ntValue, ntQuan, ntDefer, ntVector, ntVQuan);
+
+  pWordListNode = ^tWordListNode;
+  tWordListNode = Record
+    aName: string;
+    aLink: pWordListNode;
+    Actor: TProcType;
+    aWord: cardinal; {address}
+    aTimes: cardinal; {Used}
+    atype: nodeType;
+  end;
+
+  tWordSearch = object
+    fRoot: pWordListNode;
+    function Search(s: string): pWordListNode;
+    function Search(w: cardinal): pWordListNode;
+    procedure AddNode(wadr: word; name: string;
+      anActor: TProcType; typ: nodetype = ntWord);
+  end;
+
   t4thCPU = object (t4thMemory)
     areg : word;
+
 
     procedure jump;            procedure _if;
     procedure ifm;             procedure rstp;
@@ -164,39 +186,72 @@ uses
       end;
     end;
 
+    function tWordSearch.Search(s: string): pWordListNode;
+    begin
+      result := fRoot;
+      while result <> nil do with result^ do begin
+        if aName = s then exit;
+        result := aLink;
+      end;
+    end;
 
-procedure t4thCPU.InitBaseOperations;
-begin
-  {
-  '(JMP',  'XR',   'PUSH', '-/',
-  '(;',    'XA',   'POP',  '+*',
-  '(IF',   'DUP',  '!R+',  '+2/',
-  '(IF-',  'J',    '@R+',  'NAND',
-  '(TR0;', '(TR1;','(BRK;','(ESC;',
+    function tWordSearch.Search(w: cardinal): pWordListNode;
+    begin
+      result := fRoot;
+      while result <> nil do with result^ do begin
+        if aWord = w then exit;
+        result := aLink;
+      end;
+    end;
 
-  OpArr[ 0] := @jump; OpArr[ 1] := @xr;   OpArr[ 2] := @push; OpArr[ 3] := @SDiv;
-  OpArr[ 4] := @ret;  OpArr[ 5] := @xa;   OpArr[ 6] := @pop;  OpArr[ 7] := @PMul;
-  OpArr[ 8] := @_if;  OpArr[ 9] := @DUP;  OpArr[10] := @rstp; OpArr[11] := @add2div;
-  OpArr[12] := @ifm;  OpArr[13] := @j;    OpArr[14] := @rldp; OpArr[15] := @nand;
+    procedure tWordSearch.AddNode(wadr: word; name: string;
+      anActor: TProcType; typ: nodetype);
+    var newp: pWordListNode;
+    begin
+      Pointer(newP) := new(PWordListNode);
+      with NewP^ do begin
+        aName:=Name;
+        aWord:=wadr;
+        aTimes:=0;
+        Actor:=anActor;
+        atype:=typ;
+        aLink:=Froot;
+        fRoot:= newp;
+      end;
+    end;
 
-  OpArr[16] := @troff;OpArr[17] := @tron; OpArr[19] := @brk;   OpArr[19] := @EscX;
-  }
+    procedure t4thCPU.InitBaseOperations;
+    begin
+      {
+      '(JMP',  'XR',   'PUSH', '-/',
+      '(;',    'XA',   'POP',  '+*',
+      '(IF',   'DUP',  '!R+',  '+2/',
+      '(IF-',  'J',    '@R+',  'NAND',
+      '(TR0;', '(TR1;','(BRK;','(ESC;',
 
-  {extendedOps
-     defopx(@brk, 'BRK');              defopx(@comma, ',');
-     defopx(@key, 'KEY');              defopx(@emit, 'EMIT');
-     defopx(@readLine, 'READLINE');
-     defopx(@NewItem, ':=');           defopx(@Parsing, 'WORD');
-     }
-     //defopx(@find, 'FIND');
-     //procedure NewItem;     procedure Parsing;
-     //procedure words;
-     //defopx(@bye, 'BYE');
-     //defopx(@commab, 'C,');
-     //defopx(@key_pressed, 'key?');
-     //defopx(@nvld, 'NVLD');
+      OpArr[ 0] := @jump; OpArr[ 1] := @xr;   OpArr[ 2] := @push; OpArr[ 3] := @SDiv;
+      OpArr[ 4] := @ret;  OpArr[ 5] := @xa;   OpArr[ 6] := @pop;  OpArr[ 7] := @PMul;
+      OpArr[ 8] := @_if;  OpArr[ 9] := @DUP;  OpArr[10] := @rstp; OpArr[11] := @add2div;
+      OpArr[12] := @ifm;  OpArr[13] := @j;    OpArr[14] := @rldp; OpArr[15] := @nand;
 
-   end;
+      OpArr[16] := @troff;OpArr[17] := @tron; OpArr[19] := @brk;   OpArr[19] := @EscX;
+      }
+
+      {extendedOps
+         defopx(@brk, 'BRK');              defopx(@comma, ',');
+         defopx(@key, 'KEY');              defopx(@emit, 'EMIT');
+         defopx(@readLine, 'READLINE');
+         defopx(@NewItem, ':=');           defopx(@Parsing, 'WORD');
+         }
+         //defopx(@find, 'FIND');
+         //procedure NewItem;     procedure Parsing;
+         //procedure words;
+         //defopx(@bye, 'BYE');
+         //defopx(@commab, 'C,');
+         //defopx(@key_pressed, 'key?');
+         //defopx(@nvld, 'NVLD');
+
+    end;
 
 
 initialization

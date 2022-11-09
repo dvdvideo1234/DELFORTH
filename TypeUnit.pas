@@ -878,7 +878,7 @@ uses
       OpArr[19] := @EscX;
 
       {escape codes}
-      OpArr[20] := @GetHere;
+      OpArr[20] := @emit;
       OpArr[21] := @key;
       OpArr[22] := @semicolon;
       //defopx(@key, 'KEY');              defopx(@emit, 'EMIT');

@@ -304,10 +304,11 @@ procedure tTestCPU.TestRet;
     end;
 
   begin
-    getStack(retop);
+    getStack(retop);  {normal ret test  p.shift:=0}
     nibnum := 4; p.nib:=3;  anu := $10; rstk.Push(anu);  p.shift:=0;
                       ret;  TestOp((pc  <> anu)  or (p.nib<>0));   TestStack;
-    p.shift:= 1;
+
+    p.shift:= 1;   {literal testing}
     ntow($200,3,3);   ret;  TestOp((dstk.pop<>anu) or (p.nib<>0)); TestStack;
     ntow($20,2,5);    ret;  TestOp((dstk.pop<>anu) ); TestStack;
     ntow(2,1,6);      ret;  TestOp((dstk.pop<>anu) ); TestStack;
@@ -318,18 +319,23 @@ procedure tTestCPU.TestRet;
     ntow(1023,3,11);  ret;  TestOp(((dstk.pop)<>anu)); TestStack;
     ntow(63,2,12);    ret;  TestOp(((dstk.pop)<>anu)); TestStack;
     ntow(3,1,13);     ret;  TestOp(((dstk.pop)<>anu)); TestStack;
-    nibnum := 14;
+
+    nibnum := 14;  {troff}
     Debug := false;  anu := $10; rstk.Push(anu);  p.last := 8; p.nib:=1;
     ret;  TestOp((pc  <> anu)  or (p.nib<>0) or Debug); TestStack;
-    nibnum := 15; Debug := false;
+
+    nibnum := 15; Debug := false;  {tron}
     anu := $10; rstk.Push(anu);  p.last := 10; p.nib:=1;
     ret;  TestOp((pc  <> anu)  or (p.nib<>0) or (not Debug));  TestStack;
-    Debug := false;  Off := false;  nibnum := 16;
+
+    Debug := false;  Off := false;  nibnum := 16;  {brk - end of execution}
     anu := $10; rstk.Push(anu);  p.last := 12; p.nib:=1;
     ret;  TestOp((pc  <> anu)  or (p.nib<>0) or (not off));  TestStack;
-    Off := false;  nibnum := 17;
-    anu := $10; rstk.Push(anu);  p.last := 14; p.nib:=1;  Dstk.Push(0); ret;
-    TestOp((pc  <> anu)  or (p.nib<>0) or (dstk.pop <> here));  TestStack;
+
+    Off := false;  nibnum := 17;  {by ESC command - execute function No 0}
+    anu := $10; rstk.Push(anu);  p.last := 14; p.nib:=1;
+    Dstk.Push(byte('?')); Dstk.Push(0);       ret;
+    TestOp((pc  <> anu)  or (p.nib<>0));  TestStack;
 
   end;
 
