@@ -104,7 +104,7 @@ type
     procedure defWord(code: word; name: shortstring);
   end;
 
-  TParsReg = object(TwordPointer)
+  {TParsReg = object(TwordPointer)
     nameAdr: word;   // last name parsed
     // ptr - address of text buffer
     maxbuf: word;    // max chars in buf
@@ -116,7 +116,7 @@ type
     function  ACCEPT(where, len: word): word;
     procedure readLine;
     procedure setstr(s: shortstring);
-  end;
+  end;}
 
   TCompReg = object(TNibblesPointer)
     procedure align;
@@ -135,7 +135,7 @@ type
     p  : TpcReg;
     t  : TDictReg;
     h  : TCompReg;
-    s  : TParsReg;
+    //s  : TParsReg;
     d  : TDumpReg;
 
     opArr : OpArray;
@@ -143,27 +143,13 @@ type
     Dstk : tWordStack;
     Rstk : tWordStack;
 
-    SEARCH_EXEC: TProcType;
     xflag : boolean;
     xdbg  : boolean;
 
-    procedure SEARCH_EXEC_INT;
-    procedure SEARCH_EXEC_COMP;
-    procedure semicolon;
-    procedure Colon;
     procedure initCpu;
-    //procedure GetNumber;
-    function  found: word;
     procedure exec(dea: word);
-    //procedure error(msg: shortstring);
-    procedure warning(msg: shortstring);
-    procedure EvalStr(st:  shortstring);  {text evaluator}
-    procedure Eval(buf, len: word);   {text evaluator}
 
     procedure comma;
-    procedure readLine;
-    procedure NewItem;
-    procedure Parsing;
     procedure emit;
     procedure key;
     procedure key_pressed;
@@ -176,7 +162,7 @@ type
     destructor Done;
     constructor create(memSize: longint);
     procedure initPc(adr: word);
-    function  LastName: shortstring;  {from parsing}
+    //function  LastName: shortstring;  {from parsing}
     function  dumpWord: shortstring;
     procedure dumpWords(n: word);
     procedure wcomp(st:  shortstring);
@@ -192,9 +178,7 @@ type
     property pc  : word read p.ptr  write initPc;
     property dict: word read t.ptr  write t.ptr;
     property here: word read h.ptr  write h.ptr;
-    property tib:  word read s.ptr;
     property size: Longint read fsize;
-    property name: shortstring read LastName;
     property da: word read d.ptr write d.ptr;
 
   end;
@@ -428,7 +412,7 @@ uses
     result := LongRel(last , wTest[nib]);
   end;
 
-  {TParsReg}
+  {TParsReg
     procedure TParsReg.Pars(del: byte = ord(' '));
     var c: byte;              //sa - store address
       sa, fa, start: word;    //fa - fetch address
@@ -481,7 +465,7 @@ uses
     procedure TParsReg.readLine;
     begin
       buflen := ACCEPT(ptr, maxbuf);
-    end;
+    end;}
 
     {TDumpReg}
     procedure TDumpReg.align(offset, edge: integer);
@@ -613,119 +597,22 @@ uses
       p.nib:= 0;
     end;
 
-    function  t4thMemory.LastName: shortstring;
+    {function  t4thMemory.LastName: shortstring;
     begin
       result := pstr(mem[s.nameAdr])^;
-    end;
+    end;}
 
     procedure t4thMemory.comma;
     begin
       h.wcomp(dstk.pop);
     end;
 
-    function t4thMemory.found: word;
-    begin
-      result := t.FindWord(dict, name);
-    end;
-
-    procedure t4thMemory.readLine;
-    begin
-      s.readLine;
-    end;
-
-    procedure t4thMemory.NewItem;
-    begin
-      Parsing;
-      if name = '' then error(reNone);
-      if found <> 0 then warning('duplicates');
-      t.defWord(dstk.pop, name);
-    end;
-
-    procedure t4thMemory.Parsing;
-    begin
-      s.Pars();
-    end;
-
-    procedure t4thMemory.Eval(buf, len: word);  {text evaluator}
-    var oldLtib, oldEtib: word;
-    begin
-      oldltib := s.ltib;
-      oldetib := s.etib;
-      s.ltib    := -len;
-      s.etib    := buf + len;
-      repeat
-        Parsing;
-        if name <> '' then SEARCH_EXEC;
-      until name = '';
-      s.ltib := oldltib;
-      s.etib := oldetib;
-    end;
-
-    procedure t4thMemory.EvalStr(st:  shortstring);  {text evaluator}
-    begin
-      s.setstr(st);
-      eval(s.strbuf+1,length(st));
-    end;
-
-    {procedure t4thMemory.error(msg: shortstring);
-    begin
-      initCpu;
-      writeln;
-      writeln(name,':',msg);
-      writeln;
-    end;}
-
     procedure t4thMemory.initCpu;
     begin
-      SEARCH_EXEC := @SEARCH_EXEC_INT;
       off := true;
-      s.ltib := 0;   {buffer became empty}
+      //s.ltib := 0;   {buffer became empty}
     end;
 
-
-    procedure t4thMemory.warning(msg: shortstring);
-    begin write('[',name,']',msg,' ');   end;
-
-    procedure t4thMemory.SEARCH_EXEC_INT;
-    var dea: word;
-    begin
-      dea := found;
-      if dea = 0 then error(reNone); //'Not found');
-      exec(dea);
-    end;
-
-    procedure t4thMemory.SEARCH_EXEC_COMP;
-    var dea: word;
-    begin
-      inc(pchar(mem[s.nameAdr])^);
-      dea := found;
-      dec(pchar(mem[s.nameAdr])^);
-      if dea <> 0 then exec(dea)
-      else begin
-        dea := found;
-        if dea = 0 then error(reNone); //'Not found');
-        h.wcomp(dea);
-      end;
-    end;
-
-    procedure t4thMemory.Colon;
-    begin
-      SEARCH_EXEC := @SEARCH_EXEC_COMP;
-    end;
-
-    procedure t4thMemory.semicolon;
-    begin
-      SEARCH_EXEC := @SEARCH_EXEC_INT;
-
-    end;
-
-    {procedure t4thMemory.GetNumber;
-    var n, err: word;
-    begin
-      val(name,n,err);
-      if err <>0 then error(reNone); //'Not a number');
-      dstk.Push(n);
-    end;}
 
     procedure t4thMemory.exec(dea: word);
     begin
@@ -880,7 +767,7 @@ uses
       {escape codes}
       OpArr[20] := @emit;
       OpArr[21] := @key;
-      OpArr[22] := @semicolon;
+      //OpArr[22] := @semicolon;
       //defopx(@key, 'KEY');              defopx(@emit, 'EMIT');
       //defopx(@NewItem, ':=');           defopx(@Parsing, 'WORD');
 
@@ -897,82 +784,16 @@ uses
       here := 16;      // h
       h.nib:= 0;
 
-      s.SetPointer(fmemory);
+      {s.SetPointer(fmemory);
+      //s.maxbuf   := maxbufchars;
       s.ptr      := t.alloc(maxbufchars);    // tib
       s.nameAdr  := t.alloc(64);
-      s.strbuf   := t.alloc(256);
+      s.strbuf   := t.alloc(256);}
       t.defWord(0, '');
 
-      s.maxbuf   := maxbufchars;
       d.SetPointer(fmemory);
 
-      {BASE control & COMPILER PRIMITIVES}
-      strcomp(': (BR# @R+ XR (DROP (; : (#| @R+ XR PUSH (; : (# @R+ (;');
-      strcomp(': (@& @R+ POP (DROP : AND NAND DUP NAND (;');
-      strcomp(': I& J (JMP AND : SGN& (@&'); h.wcomp($8000);
-      strcomp(': (-IF# DUP SGN& : (BR#? (IF (BR# : SKIP @R+ (DROP (;');
-      strcomp(': (VAR3 @R+ @R+ NAND (DROP : (VAR POP (;');
-      strcomp(': IXEC J PUSH (; : EXECUTE PUSH (; : EX POP XR PUSH (;' );
-      strcomp(': |DROP EX : DROP (DROP : NOP (; ');
-      strcomp(': 2-| (1- : 1-| (1- : XEP| XR EXECUTE POP (; ');
-      strcomp(': TIMES PUSH XR : TIMES| PUSH (JMP 4  PUSH J'); {ITERATORS}
-      strcomp('EXECUTE POP (IF- -6 : .EXIT POP : 2DROP NAND (DROP (;');
-      strcomp(': (@+ @R+ +2/ (JMP .EXIT');
-      strcomp(': STR| POP |DROP  PUSH (JMP TIMES|');
-
-      {Fetch - Store}
-      strcomp(': A@ XA POP DUP PUSH XA (; : A! PUSH XA POP (DROP (;');
-      strcomp(': (FS XR PUSH J PUSH @R+ POP (DROP EX (JMP 2');
-      strcomp(': (S1 @R+ (DROP : (! !R+  POP (DROP (;');
-      strcomp(': (DZ0 POP XR (; : (F1 @R+ (DROP : (@ @R+ POP (DROP (; ');
-      strcomp(': (DZ1 POP XR (@+');   h.wcomp(2);
-      strcomp(': (DZ2 POP XR (@+');   h.wcomp(4);
-
-      {BASE STACK & MATH  OPS}
-      strcomp(': DEC (FS : 1- (1- (; : NEG (1- : NOT DUP NAND (;');
-      strcomp(': INC (FS : 1+ (@+'); h.wcomp(1);
-      strcomp(': (?#+ DUP : (#+ @R+ (JMP 4 : (?#- DUP @R+ ');
-      strcomp(': - NEG : + +2/ (DROP  (; : 2* DUP (JMP +');
-      strcomp(': OR PUSH DUP I& - POP (JMP +');
-      strcomp(': 2/ (NUM 0 : AVG  +2/ : NIP PUSH (DROP POP (;');
-      strcomp(': |SWAP EX : SWAP PUSH XR POP (; ');
-
-      {BASE MEM OPS}
-      strcomp(': C@I J : C@ PUSH @R+ POP (DROP : W>B (@&');   h.wcomp(255);
-      strcomp(': W>HB (@&');   h.wcomp($FF00);
-      strcomp(': STR- |SWAP : @- 2-| : @I J : @ PUSH (JMP (@');
-      strcomp(': C! PUSH W>B @I W>HB +2/ (DROP (JMP (! ');
-      strcomp(': !- 2-| : !I J : ! PUSH (JMP (! ');
-      strcomp(': STR |SWAP : @+ PUSH @R+ POP (; : !+ PUSH !R+ POP (; ');
-      strcomp(': CSTR PUSH @R+ POP (1- PUSH (NUM 255 NAND  DUP NAND XR POP (;');
-
-
-      {BASE HOST OPS}
-      strcomp(': XTRON PUSH (TR1;  : TRON (TR1; ');
-      strcomp(': TRACE XTRON     : TROFF (TR0; : (BK (NUM 1 (ESC;');
-      strcomp(': (BE (NUM 0 : (ESC (ESC; : 1STEP EXECUTE : BRK (BRK;');
-
-
-      {CONSTANTS}
-      strcomp(': 0 (@'); h.wcomp(0);
-      //strcomp(': -1 (@'); h.wcomp(WORD(-1));
-      //strcomp(': BL (@'); h.wcomp(32);
-      // strcomp(': 1 (@'); h.wcomp(1);
-
-      {BASE MUL/DIV OPS}
-      strcomp(': U* |DROP'); T.defWord(HERE+6,'`(8*');
-      strcomp(': UM* A! 0 `(8* +* +* +* +*  +* +* +* +* (;');
-      T.defWord(HERE+8,'`(8/');
-      strcomp(': U/ |DROP : UM/MOD A! 0 : (U/ `(8/ -/ -/ -/ -/ -/ -/ -/ -/ (;');
-
-      {BASE IO}
-      strcomp(': EMIT! (# (BE (S1 (@ : EMIT (BE ');
-      T.defWord(HERE+6,'CNTC');   strcomp('CNTC 1+ (S1 (@  (NOP');
-      strcomp(': CR (NUM 13 EMIT (NUM 10 EMIT (NUM 0 (JMP -18');
-      strcomp(': KEY!  (# (BK (S1 (@ : KEY (BK (;');
-
-
-      strcomp(': TEST'); // for test := 15 downto 0 do h.PutNibble(test);
+      {$include handComp.inc}
 
     end;
 

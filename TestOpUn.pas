@@ -123,7 +123,7 @@ uses
   procedure tTestCPU.Testjump;
   begin
     getStack(jumpOp);
-    mini($100, $246,  3); jump;    TestOp((pc<>$346) or (p.nib<>0));
+    mini($100, $246, 3); jump;    TestOp((pc<>$346) or (p.nib<>0));
     mini($100, $246, 2); jump;    TestOp((pc<>$146) or (p.nib<>0));
     mini($100, $246, 1); jump;    TestOp((pc<>$106) or (p.nib<>0));
     mini($100, $246, 0); jump;    TestOp((pc<>$100) or (p.nib<>0));
