@@ -16,6 +16,8 @@ type
     aWord: cardinal; {address}
   end;
 
+  E4thError = class(Exception);
+
   pWordListNode = ^tWordListNode;
   tWordListNode = object
     aLink: pWordListNode;
@@ -46,7 +48,6 @@ type
     SEARCH_EXEC: TProcType;
     Fname:  shortstring;
     Ftib:   shortstring;
-    fnum: longint;
 
     procedure jump;            procedure _if;
     procedure ifm;             procedure rstp;
@@ -59,25 +60,33 @@ type
 
     procedure InitBaseOperations;
     procedure IncludeText(nam: string);
-    procedure StrEval(st: SHortstring);
+    //procedure StrEval(st: SHortstring);
 
+    procedure initCpu;
     procedure SEARCH_EXEC_INT;
     procedure SEARCH_EXEC_COMP;
     procedure semicolon;
+    procedure semisemi;
     procedure Colon;
-    function  foundW: word;
+    procedure SetInterp;
+    procedure SetCompile;
+    procedure DoTick;
+    procedure GetIndent;
+
+    function  found: word;
     procedure error(msg: shortstring);
     procedure warning(msg: shortstring);
-    procedure EvalStr(st:  shortstring);  {text evaluator}
-    procedure Eval(buf, len: word);   {text evaluator}
+    procedure EvalStr;  {text evaluator}
+    //procedure Eval(buf, len: word);   {text evaluator}
     procedure readLine;
+
     procedure NewItem;
     procedure Parsing;
-    function  GetNumber: boolean;
+    procedure GetNumber;
+    procedure fSystem;
 
     property tib:  shortstring read ftib write ftib;
     property LastW: shortstring read Fname write Fname;
-    property num: longint read Fnum write Fnum;
 
   end;
 
@@ -89,10 +98,106 @@ implementation
 uses
   crt;
 
+    function t4thCPU.found: word;
+    var dea: pWordListNode;
+    begin
+      result := 0;
+      dea := fHost.Search(lastw);
+      if dea <> nil then result := dea^.aWord;
+    end;
+
+    procedure t4thCPU.initCpu;
+    begin
+      off := true;
+      Debug:=false;
+      Fwd := 0;
+      Bwd := 0;
+      SEARCH_EXEC := @SEARCH_EXEC_INT;
+    end;
+
+    procedure t4thCPU.SetCompile;
+    begin
+      SEARCH_EXEC := @SEARCH_EXEC_COMP;
+    end;
+
+    procedure t4thCPU.SetInterp;
+    begin
+      SEARCH_EXEC := @SEARCH_EXEC_INT;
+    end;
+
     procedure t4thCPU.readLine;
     begin
       readLn(ftib);
     end;
+
+    procedure t4thCPU.GetIndent;
+    begin
+      Parsing;
+      if lastw = '' then error('End of line');
+    end;
+
+    procedure t4thCPU.NewItem;
+    begin
+      GetIndent;
+      if found <> 0 then warning('duplicates');
+    end;
+
+    procedure t4thCPU.GetNumber;
+    var n, err: word;
+    begin
+      val(LastW,n,err);
+      if err <> 0  then error('Not a number');
+      dstk.Push(n);
+    end;
+
+    procedure t4thCPU.DoTick;
+    var dea: Word;
+    begin
+      GetIndent;
+      dea := found;
+      if dea = 0 then error('Not such Host');
+      dstk.Push(dea);
+    end;
+
+    procedure t4thCPU.Parsing;
+    begin
+      ftib := TrimLeft(ftib);
+      lastw := cutstr(ftib,' ');
+    end;
+
+    procedure t4thCPU.Colon;
+    begin
+      GetIndent;
+      SetCompile;
+      h.align;
+      lcolon := here;
+      fHost.AddNode(here, lastw, ntWord);
+    end;
+
+    procedure t4thCPU.semisemi;
+    begin
+      SetInterp;
+    end;
+
+    procedure t4thCPU.semicolon;
+    begin
+      SetInterp;
+    end;
+
+    procedure t4thCPU.fSystem;
+    begin
+      repeat write(#13#10'>>');
+        readline;
+        try
+          evalStr;
+        Except
+          on EInOutError do writeln('EInOutError');
+          on E4thError do   writeln('E4thError');
+          else  writeln('Unhandled Error');
+        end;
+      until false;
+    end;
+
 
     procedure t4thCPU.warning(msg: shortstring);
     begin write('[',lastW,']',msg,' ');   end;
@@ -100,13 +205,18 @@ uses
     procedure t4thCPU.SEARCH_EXEC_INT;
     var dea: pWordListNode;
     begin
+      write(lastw,' ');
+      IF LASTW = ';' THEN WRITELN;
+      { exit;
+
       dea := fHost.Search(lastw);
       if dea = nil then error('Not found');
       dea^.perform;
+      }
     end;
 
     procedure t4thCPU.SEARCH_EXEC_COMP;
-    var dea: pWordListNode;
+    var dea: pWordListNode; W: integer;
     begin
       dea := fcompiler.Search(lastw);
       if dea <> nil then begin
@@ -114,54 +224,24 @@ uses
       dea := fHost.Search(lastw);
       if dea <> nil then begin
         dea^.compile; exit; end;
-      if not getNumber then begin
-        error('Not a number');  exit; end;
-      if (num >= -1019) and (num <= 1023)
+      getNumber;
+      w := dstk.pop;
+      if (w >= -1019) and (w <= 1023)
         then begin
-          if num <= 0 then dec(fnum,5);
-            num := num shl 1 ;
-            h.PutRelAdr(ord(retOp),num);
+          if w <= 0 then dec(w,5);
+            w := w shl 1 ;
+            h.PutRelAdr(ord(retOp),w);
         end
         else begin
           h.align;
+
           h.wcomp(t.FindWord(t.ptr,'(#'));
-          h.wcomp(num);
+          h.wcomp(w);
         end;
     end;
 
-    procedure t4thCPU.Colon;
-    begin
-      SEARCH_EXEC := @SEARCH_EXEC_COMP;
-    end;
-
-    procedure t4thCPU.semicolon;
-    begin
-      SEARCH_EXEC := @SEARCH_EXEC_INT;
-
-    end;
-
-    function t4thCPU.GetNumber: boolean;
-    var n, err: word;
-    begin
-      val(LastW,n,err);
-      result := err = 0;
-      if not result  then error('Not a number') else dstk.Push(n);
-    end;
-
-    procedure t4thCPU.NewItem;
-    begin
-      Parsing;
-      if name = '' then error(reNone);
-      if found <> 0 then warning('duplicates');
-      t.defWord(dstk.pop, name);
-    end;
-
-    procedure t4thCPU.Parsing;
-    begin
-      s.Pars();
-    end;
-
-    procedure t4thCPU.Eval(buf, len: word);  {text evaluator}
+    {text evaluator
+    procedure t4thCPU.Eval(buf, len: word);
     var oldLtib, oldEtib: word;
     begin
       oldltib := s.ltib;
@@ -174,25 +254,23 @@ uses
       until name = '';
       s.ltib := oldltib;
       s.etib := oldetib;
-    end;
+    end;}
 
-    procedure t4thCPU.EvalStr(st:  shortstring);  {text evaluator}
+    procedure t4thCPU.EvalStr;  {text evaluator}
     begin
-      s.setstr(st);
-      eval(s.strbuf+1,length(st));
+      repeat
+        Parsing;
+        if lastw <> '' then SEARCH_EXEC;
+      until lastw = '';
     end;
 
-    {procedure t4thMemory.error(msg: shortstring);
+    procedure t4thCPU.error(msg: shortstring);
     begin
       initCpu;
       writeln;
-      writeln(name,':',msg);
+      writeln(lastw,':',msg);
       writeln;
-    end;}
-
-    function t4thCPU.found: word;
-    begin
-      result := t.FindWord(dict, name);
+      raise  E4thError.Create('');
     end;
 
 
@@ -365,6 +443,11 @@ uses
     end;
 
     {tWordListNode}
+    Procedure tWordListNode.perform;
+    begin
+
+    end;
+
     Procedure tWordListNode.Compile;
     begin
 
@@ -376,24 +459,25 @@ uses
     end;
 
     procedure t4thCPU.IncludeText(nam: string);
-    var incfile: text; aLine: shortstring;
+    var incfile: text;
     begin
-      assign(incfile,nam);
-      reset(incfile);
-      while not eof(incfile) do begin
-        readln(aline);
-        StrEval(aline);
+      try
+        assign(incfile,nam);
+        reset(incfile);
+        writeln(nam);
+        while not eof(incfile) do begin
+          readln(incfile,Ftib);
+          //writeln(Ftib);  readkey;
+          EvalStr;
+        end;
+      finally
+        close(incfile);
       end;
-      close(incfile);
-    end;
-
-    procedure t4thCPU.StrEval(st: SHortstring);
-    begin
     end;
 
     procedure t4thCPU.InitBaseOperations;
     begin
-      SEARCH_EXEC := @SEARCH_EXEC_INT;
+      initCPU;
       {
       '(JMP',  'XR',   'PUSH', '-/',
       '(;',    'XA',   'POP',  '+*',

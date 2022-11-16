@@ -19,6 +19,8 @@ begin
     //cpu.InitBaseOperations;
     //words; writeln;
     debug := true;
+
+    IncludeText('pure.inc');
     //doCall(16);
     {
     if p.nib <> 0 then execute;

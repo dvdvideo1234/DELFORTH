@@ -119,6 +119,9 @@ type
   end;}
 
   TCompReg = object(TNibblesPointer)
+    flastColon: word;
+    fbranchForward: word;
+    fbranchBackward: word;
     procedure align;
     function  HasAligned(ra: smallint): boolean;
     procedure wcomp(w: word);
@@ -142,17 +145,20 @@ type
 
     Dstk : tWordStack;
     Rstk : tWordStack;
+    Fstk : tWordStack; // forward branch stack
 
     xflag : boolean;
     xdbg  : boolean;
 
-    procedure initCpu;
     procedure exec(dea: word);
 
     procedure comma;
     procedure emit;
     procedure key;
     procedure key_pressed;
+    procedure clrscr;
+    procedure setXY;
+    procedure GetXY;
 
     procedure brk;
     procedure tron;
@@ -180,6 +186,9 @@ type
     property here: word read h.ptr  write h.ptr;
     property size: Longint read fsize;
     property da: word read d.ptr write d.ptr;
+    property lcolon: word read h.flastColon write h.flastColon;
+    property Fwd: word read h.fbranchForward write h.fbranchForward;
+    property Bwd: word read h.fbranchBackward write h.fbranchBackward;
 
   end;
 
@@ -607,13 +616,6 @@ uses
       h.wcomp(dstk.pop);
     end;
 
-    procedure t4thMemory.initCpu;
-    begin
-      off := true;
-      //s.ltib := 0;   {buffer became empty}
-    end;
-
-
     procedure t4thMemory.exec(dea: word);
     begin
       dstk.Push(dea);
@@ -625,6 +627,12 @@ uses
     procedure t4thMemory.key;   begin dstk.Push(byte(readkey));  end;
 
     procedure t4thMemory.key_pressed; begin dstk.Push(byte(keypressed));  end;
+    procedure t4thMemory.clrscr; begin crt.ClrScr;  end;
+    procedure t4thMemory.setXY;
+    var x, y: word; begin y := dstk.pop; x := dstk.pop; crt.GotoXY(x, y);  end;
+
+    procedure t4thMemory.GetXY;
+    begin dstk.push(crt.WhereX); dstk.push(crt.Wherey); end;
 
     procedure t4thMemory.troff; begin Debug:=false;  end;
     procedure t4thMemory.tron;  begin Debug:=true;    end;
@@ -737,10 +745,25 @@ uses
     constructor t4thMemory.create(memSize: LongInt); {memSize even}
     const maxbufchars = 128;
     begin
-      Debug:=false;
-      initCpu;
+      lcolon := 0;
+      fmemory := GetMem(memSize);
+      fSize := memSize;
+      d.SetPointer(fmemory);
+      p.SetPointer(fmemory);
+      t.SetPointer(fmemory);
+      h.SetPointer(fmemory);
 
-      setlength( OpArr,24);
+      dict := size;     // t
+      t.alloc(2);
+      t.defWord(0, '');
+
+      here := 16;      // h
+      h.nib:= 0;
+
+
+
+      setlength( OpArr,26);
+
       OpArr[ 0] := @brk;
       OpArr[ 1] := @brk;
       OpArr[ 2] := @brk;
@@ -767,31 +790,18 @@ uses
       {escape codes}
       OpArr[20] := @emit;
       OpArr[21] := @key;
-      //OpArr[22] := @semicolon;
-      //defopx(@key, 'KEY');              defopx(@emit, 'EMIT');
+      OpArr[22] := @key_pressed;
+      OpArr[23] := @clrScr;
+      OpArr[24] := @getXY;
+      OpArr[25] := @SETxy;
+      //defopx(@key, 'KEY');              defopx(@emit, 'EMIT');   key_pressed
       //defopx(@NewItem, ':=');           defopx(@Parsing, 'WORD');
-
-      fmemory := GetMem(memSize);
-      fSize := memSize;
-
-      p.SetPointer(fmemory);
-
-      t.SetPointer(fmemory);
-      dict := size;     // t
-      t.alloc(2);
-
-      h.SetPointer(fmemory);
-      here := 16;      // h
-      h.nib:= 0;
 
       {s.SetPointer(fmemory);
       //s.maxbuf   := maxbufchars;
       s.ptr      := t.alloc(maxbufchars);    // tib
       s.nameAdr  := t.alloc(64);
       s.strbuf   := t.alloc(256);}
-      t.defWord(0, '');
-
-      d.SetPointer(fmemory);
 
       {$include handComp.inc}
 
@@ -813,18 +823,4 @@ finalization
 
 end.
 
-'0','1','2','3','0','1','2','i','0','2','2','4','5','5','0','1','2','6','2','3','0','1','i','2','i','2', // 65..90
- a   b   c   d   e   f   g   h   i   j   k   l   m   n   o   p   q   r   s   t   u   v   w   x   y   z
-
-function possetex (const c:TSysCharSet;const s : ansistring;count:Integer ):Integer;
-var i,j:Integer;
-begin
-  if pchar(pointer(s))=nil then exit(0);
-  i:=length(s);
-  j:=count;
-  if j>i then  exit(0);
-  while (j<=i) and (not (s[j] in c)) do inc(j);
-  if (j>i) then  j:=0;      // not found.
-  result:=j;
-end;
 
