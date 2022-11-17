@@ -329,11 +329,11 @@ procedure tTestCPU.TestRet;
     ret;  TestOp((pc  <> anu)  or (p.nib<>0) or (not Debug));  TestStack;
 
     Debug := false;  Off := false;  nibnum := 16;  {brk - end of execution}
-    anu := $10; rstk.Push(anu);  p.last := 12; p.nib:=1;
+    anu := $10; PC := anu;  p.last := 12; p.nib:=1;
     ret;  TestOp((pc  <> anu)  or (p.nib<>0) or (not off));  TestStack;
 
     Off := false;  nibnum := 17;  {by ESC command - execute function No 0}
-    anu := $10; rstk.Push(anu);  p.last := 14; p.nib:=1;
+    anu := $10; RSTK.Push(anu);   p.last := 14; p.nib:=1;
     Dstk.Push(byte('?')); Dstk.Push(0);       ret;
     TestOp((pc  <> anu)  or (p.nib<>0));  TestStack;
 

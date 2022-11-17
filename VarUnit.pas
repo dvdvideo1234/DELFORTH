@@ -10,38 +10,24 @@ type
   nodeType = ( ntUndef, ntWord, ntPrimitive, ntConst, ntVar,
             ntValue, ntQuan, ntDefer, ntVector, ntVQuan);
 
-  pUnresolved = ^tUnresolved;
-  tUnresolved = record
-    aLink: pUnresolved;
-    aWord: cardinal; {address}
-  end;
-
   E4thError = class(Exception);
 
   pWordListNode = ^tWordListNode;
   tWordListNode = object
     aLink: pWordListNode;
-    aWord: cardinal; {address}
+    Act: TProcType;
     aName: string;
-    //Actor: TProcType;
-    aTimes: cardinal; {Used}
-    atype: nodeType;
-    Procedure perform;
-    Procedure compile;
-    procedure Resolve;
   end;
 
   tWordSearch = object
     fRoot: pWordListNode;
     function Search(s: string): pWordListNode;
-    function Search(w: cardinal): pWordListNode;
-    procedure AddNode(wadr: word; name: string; typ: nodetype = ntUndef);
+    procedure AddNode(actor: TProcType; name: string);
+    procedure Done;
   end;
 
   t4thCPU = object (t4thMemory)
-    areg : word;
-
-    fTarget: tWordSearch;
+    //fTarget: tWordSearch;
     fHost: tWordSearch;
     fCompiler: tWordSearch;
 
@@ -49,41 +35,37 @@ type
     Fname:  shortstring;
     Ftib:   shortstring;
 
-    procedure jump;            procedure _if;
-    procedure ifm;             procedure rstp;
-    procedure rldp;            procedure xr;
-    procedure xa;              procedure push;
-    procedure j;               procedure dup;
-    procedure pop;             procedure nand;
-    procedure add2div;         procedure PMul;
-    procedure SDiv;            procedure RET;
-
-    procedure InitBaseOperations;
-    procedure IncludeText(nam: string);
     //procedure StrEval(st: SHortstring);
 
-    procedure initCpu;
-    procedure SEARCH_EXEC_INT;
-    procedure SEARCH_EXEC_COMP;
-    procedure semicolon;
-    procedure semisemi;
-    procedure Colon;
-    procedure SetInterp;
-    procedure SetCompile;
-    procedure DoTick;
-    procedure GetIndent;
+    {COMPILER STUFF}
+    procedure jumpComp;   procedure xrComp;       procedure pushComp;
+    procedure SDivComp;   procedure retComp;      procedure xaComp;
+    procedure popComp;    procedure PMulComp;     procedure ifComp;
+    procedure DUPComp;    procedure rstpComp;     procedure a2dComp;
+    procedure ifmComp;    procedure JComp;        procedure rldpComp;
+    procedure nandComp;   procedure TR0Comp;      procedure TR1Comp;
+    procedure BRKComp;    procedure EscComp;      procedure SEARCH_EXEC_COMP;
+    procedure semicolon;  procedure semisemi;     procedure Colon;
 
-    function  found: word;
-    procedure error(msg: shortstring);
-    procedure warning(msg: shortstring);
-    procedure EvalStr;  {text evaluator}
+    {INTERPRETTER STUFF}
+    procedure BYE;        procedure Include;      procedure SEARCH_EXEC_INT;
+    procedure dot;        procedure Hdot;         PROCEDURE GetDICT;
+    procedure page;       procedure WDUMP;        procedure DoTick;
+    procedure SetInterp;  procedure SetCompile;   procedure GetIndent;
+    PROCEDURE GetHERE;
+
+    {COMMON STUFF}
+    procedure NewItem;    procedure Parsing;      procedure GetNumber;
+    procedure fSystem;    procedure wcomp(st:  shortstring);
+    procedure initCpu;    procedure error(msg: shortstring);
+    function found: word; procedure warning(msg: shortstring);
+    procedure EvalStr;    procedure IncludeText(nam: shortstring);
+    PROCEDURE CR;         procedure InitBaseOperations;
+    procedure ACCEPT;
+
     //procedure Eval(buf, len: word);   {text evaluator}
-    procedure readLine;
+    //procedure readLine;
 
-    procedure NewItem;
-    procedure Parsing;
-    procedure GetNumber;
-    procedure fSystem;
 
     property tib:  shortstring read ftib write ftib;
     property LastW: shortstring read Fname write Fname;
@@ -99,11 +81,16 @@ uses
   crt;
 
     function t4thCPU.found: word;
-    var dea: pWordListNode;
     begin
-      result := 0;
-      dea := fHost.Search(lastw);
-      if dea <> nil then result := dea^.aWord;
+      result := t.FindWord(t.ptr, lastw);
+      if result <> 0 then result := t.fetch(result);
+    end;
+
+    procedure t4thCPU.wcomp(st:  shortstring);
+    var  where: word;
+    begin  WHERE :=  T.FindWord(T.ptr,ST);
+      if where = 0 then error('"'+ST+'" Not exist');
+      h.wcomp(t.fetch(where));
     end;
 
     procedure t4thCPU.initCpu;
@@ -113,6 +100,8 @@ uses
       Fwd := 0;
       Bwd := 0;
       SEARCH_EXEC := @SEARCH_EXEC_INT;
+      Ftib := '';
+      Fname:='';
     end;
 
     procedure t4thCPU.SetCompile;
@@ -125,10 +114,7 @@ uses
       SEARCH_EXEC := @SEARCH_EXEC_INT;
     end;
 
-    procedure t4thCPU.readLine;
-    begin
-      readLn(ftib);
-    end;
+    {procedure t4thCPU.readLine; begin readLn(ftib); end;}
 
     procedure t4thCPU.GetIndent;
     begin
@@ -143,7 +129,8 @@ uses
     end;
 
     procedure t4thCPU.GetNumber;
-    var n, err: word;
+    var n: LONGINT;
+      err: word;
     begin
       val(LastW,n,err);
       if err <> 0  then error('Not a number');
@@ -171,31 +158,18 @@ uses
       SetCompile;
       h.align;
       lcolon := here;
-      fHost.AddNode(here, lastw, ntWord);
+      t.defWord(here, lastw);
     end;
 
     procedure t4thCPU.semisemi;
     begin
-      SetInterp;
+      retComp;
+      if (Fwd or Bwd) = 0 then SetInterp;
     end;
 
     procedure t4thCPU.semicolon;
     begin
-      SetInterp;
-    end;
-
-    procedure t4thCPU.fSystem;
-    begin
-      repeat write(#13#10'>>');
-        readline;
-        try
-          evalStr;
-        Except
-          on EInOutError do writeln('EInOutError');
-          on E4thError do   writeln('E4thError');
-          else  writeln('Unhandled Error');
-        end;
-      until false;
+      semisemi;
     end;
 
 
@@ -204,15 +178,10 @@ uses
 
     procedure t4thCPU.SEARCH_EXEC_INT;
     var dea: pWordListNode;
-    begin
-      write(lastw,' ');
-      IF LASTW = ';' THEN WRITELN;
-      { exit;
-
+    begin  //write(lastw,' ');  //IF LASTW = ';' THEN WRITELN;
       dea := fHost.Search(lastw);
-      if dea = nil then error('Not found');
-      dea^.perform;
-      }
+      if dea <> nil then BEGIN dea^.Act; EXIT; END;
+      getNumber;
     end;
 
     procedure t4thCPU.SEARCH_EXEC_COMP;
@@ -220,10 +189,9 @@ uses
     begin
       dea := fcompiler.Search(lastw);
       if dea <> nil then begin
-        dea^.perform; exit; end;
-      dea := fHost.Search(lastw);
-      if dea <> nil then begin
-        dea^.compile; exit; end;
+        dea^.Act; exit; end;
+      w := found;
+      if w <> 0 then begin h.align; h.wcomp(w); exit; end;
       getNumber;
       w := dstk.pop;
       if (w >= -1019) and (w <= 1023)
@@ -234,9 +202,7 @@ uses
         end
         else begin
           h.align;
-
-          h.wcomp(t.FindWord(t.ptr,'(#'));
-          h.wcomp(w);
+          wcomp('(#');
         end;
     end;
 
@@ -256,157 +222,14 @@ uses
       s.etib := oldetib;
     end;}
 
-    procedure t4thCPU.EvalStr;  {text evaluator}
-    begin
-      repeat
-        Parsing;
-        if lastw <> '' then SEARCH_EXEC;
-      until lastw = '';
-    end;
-
     procedure t4thCPU.error(msg: shortstring);
     begin
+      CR;
+      write('"'+lastw+'" :',msg);
       initCpu;
-      writeln;
-      writeln(lastw,':',msg);
-      writeln;
       raise  E4thError.Create('');
     end;
 
-
-
-    {
-    ; (JUMP (; (IF (IF-   CONTROLS
-       mandatory on exit  -->   nibNum:= 0;
-    }
-
-    procedure  t4thCPU.jump;
-    begin
-        //if p.nib = 0 then exit;
-        pc := pc + p.RelAdr;
-    end;
-
-    procedure  t4thCPU._if;
-    begin
-      if dstk.pop = 0 then jump;
-      p.nib:= 0;
-    end;
-
-    procedure  t4thCPU.ifm;
-    begin
-      dec(dstk.top);
-      if smallint(dstk.top) >= 0 then jump;
-      p.nib:= 0;
-    end;
-
-    procedure  t4thCPU.RET;    {escape codes 128}
-    var anum: smallint;
-    begin
-      with p do
-      if shift<> 0 then begin
-        anum := RelAdr;
-        anum := anum div 2;
-        if (anum+4) in [0..3] then doer(20 + anum) {execute Extended opcode}
-        else  begin
-          if anum <0  then  INC(anum,5);
-          dstk.Push(anum);
-          p.nib:= 0;  {-1019..1023}
-          exit;
-        end;
-      end;
-      pc := rstk.pop;    {end return}
-    end;
-
-  {
-  ; !R+ @R+ xR XA       TRANSFER
-  }
-    procedure  t4thCPU.rstp;
-    begin
-      p.store(rstk.top, dstk.pop);
-      inc(rstk.top,2)
-    end;
-
-    procedure  t4thCPU.rldp;
-    begin
-      dstk.Push(p.fetch(rstk.top));
-      inc(rstk.top,2)
-    end;
-
-    procedure  t4thCPU.xr;
-    var temp: word;
-    begin
-      temp := rstk.top;
-      rstk.top :=  dstk.top;
-      dstk.top := temp;
-    end;
-
-    procedure  t4thCPU.xa;
-    var temp: word;
-    begin
-      temp := rstk.top;
-      rstk.top := areg;
-      areg := temp;
-    end;
-
-  {
-   push pop J DUP      STACK
-  }
-    procedure  t4thCPU.push;
-    begin
-      rstk.Push(dstk.pop);
-    end;
-
-    procedure  t4thCPU.j;
-    begin
-      dstk.Push(rstk.next);
-    end;
-
-    procedure  t4thCPU.dup;
-    begin
-      dstk.Push(dstk.top);
-    end;
-
-    procedure  t4thCPU.pop;
-    begin
-      dstk.Push(rstk.pop);
-    end;
-
-  {
-  ; NAND +2/ +* -/      MATH & LOGIC
-  }
-    procedure  t4thCPU.nand;
-    begin
-      with dstk do top := not (pop and top);
-    end;
-
-    procedure  t4thCPU.add2div;
-    var res: word;
-    begin
-      with dstk do begin
-        res := avg(top, next);
-        inc(next,top);
-        top := res;
-      end;
-    end;
-
-   procedure  t4thCPU.PMul;
-   begin
-     with dstk do
-       if odd(next)
-         then rcRw(next,rcrw(top,incw(top,areg)))
-         else rcRw(next,rcrw(top));
-   end;
-
-    procedure  t4thCPU.SDiv;
-    begin
-      with dstk do begin
-        rclw(top,rclw(next));
-        if top >= areg then begin
-          dec(top,areg);
-          inc(next);
-        end;
-      end;
-    end;
 
     {tWordSearch}
     function tWordSearch.Search(s: string): pWordListNode;
@@ -418,96 +241,157 @@ uses
       end;
     end;
 
-    function tWordSearch.Search(w: cardinal): pWordListNode;
-    begin
-      result := fRoot;
-      while result <> nil do with result^ do begin
-        if aWord = w then exit;
-        result := aLink;
-      end;
-    end;
-
-    procedure tWordSearch.AddNode(wadr: word; name: string; typ: nodetype);
+    procedure tWordSearch.AddNode(actor: TProcType; name: string);
     var newp: pWordListNode;
     begin
       Pointer(newP) := new(PWordListNode);
       with NewP^ do begin
         aName:=Name;
-        aWord:=wadr;
-        aTimes:=0;
-        //Actor:=anActor;
-        atype:=typ;
+        Act:=Actor;
         aLink:=Froot;
         fRoot:= newp;
       end;
     end;
 
-    {tWordListNode}
-    Procedure tWordListNode.perform;
+    procedure tWordSearch.Done;
+    var newp: pWordListNode;
     begin
-
+      while self.fRoot <> nil do begin
+        newp := froot^.aLink;
+        dispose(froot);
+        froot := newp;
+      end;
     end;
 
-    Procedure tWordListNode.Compile;
-    begin
-
-    end;
-
-    procedure tWordListNode.Resolve;
-    begin
-
-    end;
-
-    procedure t4thCPU.IncludeText(nam: string);
-    var incfile: text;
-    begin
+    procedure t4thCPU.IncludeText(nam: shortstring);
+    var incfile: text;   FLAG: boolean;
+    begin  flag := true;
       try
         assign(incfile,nam);
         reset(incfile);
-        writeln(nam);
+        //writeln(nam);
         while not eof(incfile) do begin
+          flag := true;
           readln(incfile,Ftib);
           //writeln(Ftib);  readkey;
           EvalStr;
+          flag := false;
         end;
       finally
         close(incfile);
+        if flag then writeln(nam + ' is closed');
       end;
     end;
+
+    procedure t4thCPU.fSystem;
+    begin
+      repeat CR; write('>>');        ACCEPT; WRITE(' ');
+        try
+          evalStr; WRITE(' Ok');
+        Except
+          on E: EInOutError do writeln('InOut '+E.Message);
+          on E: E4thError do ; //  writeln('E4thError');
+          else  writeln('Unhandled Error');
+        end;
+      until false;
+    end;
+
+    procedure t4thCPU.EvalStr;  {text evaluator}
+    begin
+      repeat
+        Parsing;
+        if lastw <> '' then SEARCH_EXEC;
+      until lastw = '';
+    end;
+
+    procedure t4thCPU.ACCEPT;
+    var ind, len: word;  ch: char; c: byte absolute ch;
+    begin  ind   := 0; LEN := 255;
+      repeat ch := readkey;
+        case ch of
+        #8: if ind > 0 then begin  write(#8#32#8); dec(ind); end;
+        #9: ch := ' ';
+        #13: break;
+        else if ch >= ' ' then begin write(ch); inc(ind);
+          ftib[ind] := ch; end;
+        end;
+      until ind = len;
+      c := ind;
+      ftib[0]  := ch;
+    end;
+
+    procedure t4thCPU.jumpComp;  begin h.PutRelAdr(ORD(jumpOp),0); end;
+    procedure t4thCPU.xrComp;   begin h.PutNibble(ORD(xrOp)); end;
+    procedure t4thCPU.pushComp; begin h.PutNibble(ORD(PUSHOp)); end;
+    procedure t4thCPU.SDivComp; begin h.PutNibble(ORD(SDIVOp)); end;
+    procedure t4thCPU.retComp;   begin h.PutRelAdr(ORD(RETOp),0); end;
+    procedure t4thCPU.xaComp;   begin h.PutNibble(ORD(xAOp)); end;
+    procedure t4thCPU.popComp;  begin h.PutNibble(ORD(POPOp)); end;
+    procedure t4thCPU.PMulComp; begin h.PutNibble(ORD(PMULOp)); end;
+    procedure t4thCPU.ifComp;    begin h.PutRelAdr(ORD(IFOp),0); end;
+    procedure t4thCPU.DUPComp;  begin h.PutNibble(ORD(DUPOp)); end;
+    procedure t4thCPU.rstpComp; begin h.PutNibble(ORD(rstpOp)); end;
+    procedure t4thCPU.a2dComp;  begin h.PutNibble(ORD(A2DOp)); end;
+    procedure t4thCPU.ifmComp;   begin h.PutRelAdr(ORD(IFMOp),0); end;
+    procedure t4thCPU.JComp;    begin h.PutNibble(ORD(jOp)); end;
+    procedure t4thCPU.rldpComp; begin h.PutNibble(ORD(rldpOp)); end;
+    procedure t4thCPU.nandComp; begin h.PutNibble(ORD(nandOp)); end;
+    procedure t4thCPU.TR0Comp;   begin strcomp('(TR0;'); end;
+    procedure t4thCPU.TR1Comp;  begin strcomp('(TR1;'); end;
+    procedure t4thCPU.BRKComp;  begin strcomp('(BRK'); end;
+    procedure t4thCPU.EscComp;  begin strcomp('(ESC;'); end;
+
+    procedure t4thCPU.BYE; begin HALT; end;
+    procedure t4thCPU.Include; begin  GetIndent; IncludeText(lastw); end;
+    procedure t4thCPU.page;  begin  clrScr; end;
+    procedure t4thCPU.dot; begin write(dstk.pop,' '); end;
+    procedure t4thCPU.Hdot;  begin write(wordtohex(dstk.pop),' '); end;
+    procedure t4thCPU.WDUMP;  VAR L: word;
+      begin  l := dstk.pop; d.ptr:=dstk.pop AND MIN2;  dumpwords(l); end;
+    PROCEDURE t4thCPU.GetHERE;    begin dstk.push(HERE); end;
+    PROCEDURE t4thCPU.GetDICT;    begin dstk.push(DICT); end;
+    PROCEDURE t4thCPU.CR;    begin d.cr; end;
+
+
+
 
     procedure t4thCPU.InitBaseOperations;
     begin
       initCPU;
-      {
-      '(JMP',  'XR',   'PUSH', '-/',
-      '(;',    'XA',   'POP',  '+*',
-      '(IF',   'DUP',  '!R+',  '+2/',
-      '(IF-',  'J',    '@R+',  'NAND',
-      '(TR0;', '(TR1;','(BRK;','(ESC;',
+      with fHost do begin
+        AddNode(@bye,'BYE');                   AddNode(@Include,'INCLUDE');
+        AddNode(@HDOT,'H.');                   AddNode(@dot,'.');
+        AddNode(@page,'PAGE');                 AddNode(@GETXY,'@XY');
+        AddNode(@WDUMP,'WDUMP');               AddNode(@WORDS,'WORDS');
+        AddNode(@COMMA,',');                   AddNode(@DOTICK,'''');
+        AddNode(@GetHERE,'HERE');              AddNode(@GetDICT,'DICT');
+        AddNode(@SetCompile,'>,');             AddNode(@COLON,':');
+        AddNode(@EMIT,'EMIT');                 AddNode(@CR,'CR');
+      end;
 
-      OpArr[ 0] := @jump; OpArr[ 1] := @xr;   OpArr[ 2] := @push; OpArr[ 3] := @SDiv;
-      OpArr[ 4] := @ret;  OpArr[ 5] := @xa;   OpArr[ 6] := @pop;  OpArr[ 7] := @PMul;
-      OpArr[ 8] := @_if;  OpArr[ 9] := @DUP;  OpArr[10] := @rstp; OpArr[11] := @add2div;
-      OpArr[12] := @ifm;  OpArr[13] := @j;    OpArr[14] := @rldp; OpArr[15] := @nand;
+      with fCompiler do begin
+        AddNode(@jumpComp,opNames[0]);         AddNode(@xrComp,opNames[1]);
+        AddNode(@pushComp,opNames[2]);         AddNode(@SDivComp,opNames[3]);
+        AddNode(@retComp,opNames[4]);          AddNode(@xaComp,opNames[5]);
+        AddNode(@popComp,opNames[6]);          AddNode(@PMulComp,opNames[7]);
+        AddNode(@ifComp,opNames[8]);           AddNode(@DUPComp,opNames[9]);
+        AddNode(@rstpComp,opNames[10]);        AddNode(@a2dComp,opNames[11]);
+        AddNode(@ifmComp,opNames[12]);         AddNode(@JComp,opNames[13]);
+        AddNode(@rldpComp,opNames[14]);        AddNode(@nandComp,opNames[15]);
+        AddNode(@TR0Comp,opNames[16]);         AddNode(@TR1Comp,opNames[17]);
+        AddNode(@BRKComp,opNames[18]);         AddNode(@EscComp,opNames[19]);
 
-      OpArr[16] := @troff;OpArr[17] := @tron; OpArr[19] := @brk;   OpArr[19] := @EscX;
-      }
-
-      {extendedOps
-         defopx(@brk, 'BRK');              defopx(@comma, ',');
-         defopx(@key, 'KEY');              defopx(@emit, 'EMIT');
-         defopx(@readLine, 'READLINE');
-         defopx(@NewItem, ':=');           defopx(@Parsing, 'WORD');
-         }
-         //defopx(@find, 'FIND');
-         //procedure NewItem;     procedure Parsing;
-         //procedure words;
-         //defopx(@bye, 'BYE');
-         //defopx(@commab, 'C,');
-         //defopx(@key_pressed, 'key?');
-         //defopx(@nvld, 'NVLD');
+        AddNode(@SetInterp,',<');              AddNode(@COLON,':');
+        //AddNode(@DoBegin,'BEGIN');             AddNode(@DoUntil,'UNTIL');
+        //AddNode(@DoIf,'IF');                   AddNode(@DoIfm,'IF-');
+        //AddNode(@DoNextM,'NEXT-');             AddNode(@DoAhead,'AHEAD');
+        //AddNode(@DoTHEN,'THEN');
+        //AddNode(@SEMICOLON,';');               AddNode(@SEMISEMI,';;');
+      end;
 
     end;
+
+
 
 
 initialization

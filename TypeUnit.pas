@@ -13,7 +13,7 @@ const
     '(;',    'XA',   'POP',  '+*',
     '(IF',   'DUP',  '!R+',  '+2/',
     '(IF-',  'J',    '@R+',  'NAND',
-    '(TR0;', '(TR1;','(BRK;','(ESC;',
+    '(TR0;', '(TR1;','(BRK','(ESC;',
     '(NOP',  '(DROP','(1-',  ':',
     '(NUM'
     );
@@ -135,6 +135,8 @@ type
   private
     fsize: Longint;
   public
+    areg : word;
+
     p  : TpcReg;
     t  : TDictReg;
     h  : TCompReg;
@@ -150,7 +152,14 @@ type
     xflag : boolean;
     xdbg  : boolean;
 
-    procedure exec(dea: word);
+    procedure jump;            procedure _if;
+    procedure ifm;             procedure rstp;
+    procedure rldp;            procedure xr;
+    procedure xa;              procedure push;
+    procedure j;               procedure dup;
+    procedure pop;             procedure nand;
+    procedure add2div;         procedure PMul;
+    procedure SDiv;            procedure RET;
 
     procedure comma;
     procedure emit;
@@ -168,16 +177,16 @@ type
     destructor Done;
     constructor create(memSize: longint);
     procedure initPc(adr: word);
+    procedure exec(dea: word);
+
     //function  LastName: shortstring;  {from parsing}
     function  dumpWord: shortstring;
     procedure dumpWords(n: word);
-    procedure wcomp(st:  shortstring);
     procedure strcomp(s3: shortstring);
     procedure Words;
     procedure doCall(adr: word);
     procedure execute;
     procedure doer(opind: byte);
-    procedure GetHere;
 
     property Off: boolean read xflag write xflag;
     property Debug: boolean read xdbg write xdbg;
@@ -506,6 +515,140 @@ uses
 
 
     {t4thMemory}
+
+        {
+        ; (JUMP (; (IF (IF-   CONTROLS
+           mandatory on exit  -->   nibNum:= 0;
+        }
+
+        procedure  t4thMemory.jump;
+        begin
+            //if p.nib = 0 then exit;
+            pc := pc + p.RelAdr;
+        end;
+
+        procedure  t4thMemory._if;
+        begin
+          if dstk.pop = 0 then jump;
+          p.nib:= 0;
+        end;
+
+        procedure  t4thMemory.ifm;
+        begin
+          dec(dstk.top);
+          if smallint(dstk.top) >= 0 then jump;
+          p.nib:= 0;
+        end;
+
+        procedure  t4thMemory.RET;    {escape codes 128}
+        var anum: smallint;
+        begin
+          with p do
+          if shift<> 0 then begin
+            anum := RelAdr;
+            anum := anum div 2;
+            if (anum+4) in [0..3] then doer(20 + anum) {execute Extended opcode}
+            else  begin
+              if anum <0  then  INC(anum,5);
+              dstk.Push(anum);
+              p.nib:= 0;  {-1019..1023}
+              exit;
+            end;
+          end;
+          pc := rstk.pop;    {end return}
+        end;
+
+      {
+      ; !R+ @R+ xR XA       TRANSFER
+      }
+        procedure  t4thMemory.rstp;
+        begin
+          p.store(rstk.top, dstk.pop);
+          inc(rstk.top,2)
+        end;
+
+        procedure  t4thMemory.rldp;
+        begin
+          dstk.Push(p.fetch(rstk.top));
+          inc(rstk.top,2)
+        end;
+
+        procedure  t4thMemory.xr;
+        var temp: word;
+        begin
+          temp := rstk.top;
+          rstk.top :=  dstk.top;
+          dstk.top := temp;
+        end;
+
+        procedure  t4thMemory.xa;
+        var temp: word;
+        begin
+          temp := rstk.top;
+          rstk.top := areg;
+          areg := temp;
+        end;
+
+      {
+       push pop J DUP      STACK
+      }
+        procedure  t4thMemory.push;
+        begin
+          rstk.Push(dstk.pop);
+        end;
+
+        procedure  t4thMemory.j;
+        begin
+          dstk.Push(rstk.next);
+        end;
+
+        procedure  t4thMemory.dup;
+        begin
+          dstk.Push(dstk.top);
+        end;
+
+        procedure  t4thMemory.pop;
+        begin
+          dstk.Push(rstk.pop);
+        end;
+
+      {
+      ; NAND +2/ +* -/      MATH & LOGIC
+      }
+        procedure  t4thMemory.nand;
+        begin
+          with dstk do top := not (pop and top);
+        end;
+
+        procedure  t4thMemory.add2div;
+        var res: word;
+        begin
+          with dstk do begin
+            res := avg(top, next);
+            inc(next,top);
+            top := res;
+          end;
+        end;
+
+       procedure  t4thMemory.PMul;
+       begin
+         with dstk do
+           if odd(next)
+             then rcRw(next,rcrw(top,incw(top,areg)))
+             else rcRw(next,rcrw(top));
+       end;
+
+        procedure  t4thMemory.SDiv;
+        begin
+          with dstk do begin
+            rclw(top,rclw(next));
+            if top >= areg then begin
+              dec(top,areg);
+              inc(next);
+            end;
+          end;
+        end;
+
     function  t4thMemory.dumpWord: shortstring;
     var  nibl: byte; where: smallint; nibname: str39;
       wadr: word;
@@ -534,7 +677,7 @@ uses
             where := where div 2;
             case where of
             -1: nibname := '(ESC;';
-            -2: nibname := '(BRK;';
+            -2: nibname := '(BRK';
             -3: nibname := '(TR1;';
             -4: nibname := '(TR0;';
             ELSE  BEGIN
@@ -593,23 +736,11 @@ uses
       end;
     end;
 
-    procedure t4thMemory.wcomp(st:  shortstring);
-    var  where: word;
-    begin  WHERE :=  T.FindWord(T.ptr,ST);
-      if where = 0 then error(reNone);
-      h.wcomp(t.fetch(where));
-    end;
-
     procedure t4thMemory.initPc(adr: word);
     begin
       p.ptr := adr and min2;
       p.nib:= 0;
     end;
-
-    {function  t4thMemory.LastName: shortstring;
-    begin
-      result := pstr(mem[s.nameAdr])^;
-    end;}
 
     procedure t4thMemory.comma;
     begin
@@ -636,9 +767,8 @@ uses
 
     procedure t4thMemory.troff; begin Debug:=false;  end;
     procedure t4thMemory.tron;  begin Debug:=true;    end;
-    procedure t4thMemory.brk;   begin {rstk.Push(pc);}  xflag := true;  end;
+    procedure t4thMemory.brk;   begin rstk.Push(pc);  xflag := true;  end;
     procedure t4thMemory.EscX;  begin doer((dstk.pop and 31) + 20); end;
-    procedure t4thMemory.GetHere;  begin Dstk.Push(Here); end;
 
     procedure t4thMemory.doer(opind: byte);
     var lastd: word;
@@ -748,54 +878,32 @@ uses
       lcolon := 0;
       fmemory := GetMem(memSize);
       fSize := memSize;
-      d.SetPointer(fmemory);
-      p.SetPointer(fmemory);
-      t.SetPointer(fmemory);
-      h.SetPointer(fmemory);
+      d.SetPointer(fmemory);      p.SetPointer(fmemory);
+      t.SetPointer(fmemory);      h.SetPointer(fmemory);
 
-      dict := size;     // t
-      t.alloc(2);
-      t.defWord(0, '');
+      dict := size; t.alloc(2);   t.defWord(0, ''); // t
 
-      here := 16;      // h
-      h.nib:= 0;
-
-
+      here := 16;   h.nib:= 0;       // h
 
       setlength( OpArr,26);
 
-      OpArr[ 0] := @brk;
-      OpArr[ 1] := @brk;
-      OpArr[ 2] := @brk;
-      OpArr[ 3] := @brk;
-      OpArr[ 4] := @brk;
-      OpArr[ 5] := @brk;
-      OpArr[ 6] := @brk;
-      OpArr[ 7] := @brk;
-      OpArr[ 8] := @brk;
-      OpArr[ 9] := @brk;
-      OpArr[10] := @brk;
-      OpArr[11] := @brk;
-      OpArr[12] := @brk;
-      OpArr[13] := @brk;
-      OpArr[14] := @brk;
-      OpArr[15] := @brk;
+      OpArr[ 0] := @jump;         OpArr[ 1] := @xr;
+      OpArr[ 2] := @push;         OpArr[ 3] := @SDiv;
+      OpArr[ 4] := @ret;          OpArr[ 5] := @xa;
+      OpArr[ 6] := @pop;          OpArr[ 7] := @PMul;
+      OpArr[ 8] := @_if;          OpArr[ 9] := @DUP;
+      OpArr[10] := @rstp;         OpArr[11] := @add2div;
+      OpArr[12] := @ifm;          OpArr[13] := @j;
+      OpArr[14] := @rldp;         OpArr[15] := @nand;
 
       {extended codes}
-      OpArr[16] := @troff;
-      OpArr[17] := @tron;
-      OpArr[18] := @brk;
-      OpArr[19] := @EscX;
+      OpArr[16] := @troff;        OpArr[17] := @tron;
+      OpArr[18] := @brk;          OpArr[19] := @EscX;
 
       {escape codes}
-      OpArr[20] := @emit;
-      OpArr[21] := @key;
-      OpArr[22] := @key_pressed;
-      OpArr[23] := @clrScr;
-      OpArr[24] := @getXY;
-      OpArr[25] := @SETxy;
-      //defopx(@key, 'KEY');              defopx(@emit, 'EMIT');   key_pressed
-      //defopx(@NewItem, ':=');           defopx(@Parsing, 'WORD');
+      OpArr[20] := @emit;         OpArr[21] := @key;
+      OpArr[22] := @key_pressed;  OpArr[23] := @clrScr;
+      OpArr[24] := @getXY;        OpArr[25] := @SETxy;
 
       {s.SetPointer(fmemory);
       //s.maxbuf   := maxbufchars;

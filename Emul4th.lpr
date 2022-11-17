@@ -20,7 +20,8 @@ begin
     //words; writeln;
     debug := true;
 
-    IncludeText('pure.inc');
+    //IncludeText('pure.inc');
+    //error('gaga');
     //doCall(16);
     {
     if p.nib <> 0 then execute;
@@ -28,6 +29,7 @@ begin
     if p.nib <> 0 then execute;
     writeln(da);
     }
+    fSystem;
 
   end;
 

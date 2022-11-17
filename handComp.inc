@@ -34,7 +34,7 @@
       strcomp(': W>HB (@&');   h.wcomp($FF00);
       strcomp(': STR- |SWAP : @- 2-| : @I J : @ PUSH (JMP (@');
       strcomp(': C! PUSH W>B @I W>HB +2/ (DROP (JMP (! ');
-      strcomp(': !- 2-| : !I J : ! PUSH (JMP (! ');
+      strcomp(': !- 2-| : !I J : ! PUSH  (JMP (! ');
       strcomp(': STR |SWAP : @+ PUSH @R+ POP (; : !+ PUSH !R+ POP (; ');
       strcomp(': CSTR PUSH @R+ POP (1- PUSH (NUM 255 NAND  DUP NAND XR POP (;');
 
@@ -42,7 +42,7 @@
       {BASE HOST OPS}
       strcomp(': XTRON PUSH (TR1;  : TRON (TR1; ');
       strcomp(': TRACE XTRON     : TROFF (TR0; : (BK (NUM 1 (ESC;');
-      strcomp(': (BE (NUM 0 : (ESC (ESC; : 1STEP EXECUTE : BRK (BRK;');
+      strcomp(': (BE (NUM 0 : (ESC (ESC; : 1STEP EXECUTE : BRK (BRK');
 
 
       {CONSTANTS}
