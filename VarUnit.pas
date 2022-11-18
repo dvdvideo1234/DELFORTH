@@ -27,15 +27,12 @@ type
   end;
 
   t4thCPU = object (t4thMemory)
-    //fTarget: tWordSearch;
     fHost: tWordSearch;
     fCompiler: tWordSearch;
 
     SEARCH_EXEC: TProcType;
     Fname:  shortstring;
     Ftib:   shortstring;
-
-    //procedure StrEval(st: SHortstring);
 
     {COMPILER STUFF}
     procedure jumpComp;   procedure xrComp;       procedure pushComp;
@@ -46,13 +43,18 @@ type
     procedure nandComp;   procedure TR0Comp;      procedure TR1Comp;
     procedure BRKComp;    procedure EscComp;      procedure SEARCH_EXEC_COMP;
     procedure semicolon;  procedure semisemi;     procedure Colon;
+    procedure DoBegin;    procedure DoUntil;      procedure DoIf;
+    procedure DoIfm;      procedure DoNextM;      procedure DoAhead;
+    procedure DoTHEN;     procedure DoTWICE;      procedure DoCall;
+    procedure DoAgain;    procedure ToLabel;
+
 
     {INTERPRETTER STUFF}
     procedure BYE;        procedure Include;      procedure SEARCH_EXEC_INT;
     procedure dot;        procedure Hdot;         PROCEDURE GetDICT;
     procedure page;       procedure WDUMP;        procedure DoTick;
     procedure SetInterp;  procedure SetCompile;   procedure GetIndent;
-    PROCEDURE GetHERE;
+    PROCEDURE GetHERE;    procedure REM;
 
     {COMMON STUFF}
     procedure NewItem;    procedure Parsing;      procedure GetNumber;
@@ -61,9 +63,11 @@ type
     function found: word; procedure warning(msg: shortstring);
     procedure EvalStr;    procedure IncludeText(nam: shortstring);
     PROCEDURE CR;         procedure InitBaseOperations;
-    procedure ACCEPT;
+    procedure NotFound;   procedure MarkForward(o: tOpCode);
+    procedure ACCEPT;     procedure ReleaseBackward(o: tOpCode);
 
-    //procedure Eval(buf, len: word);   {text evaluator}
+
+      //procedure Eval(buf, len: word);   {text evaluator}
     //procedure readLine;
 
 
@@ -93,6 +97,11 @@ uses
       h.wcomp(t.fetch(where));
     end;
 
+    procedure t4thCPU.NotFound;
+    begin
+      error('Not found');
+    end;
+
     procedure t4thCPU.initCpu;
     begin
       off := true;
@@ -100,8 +109,7 @@ uses
       Fwd := 0;
       Bwd := 0;
       SEARCH_EXEC := @SEARCH_EXEC_INT;
-      Ftib := '';
-      Fname:='';
+      REM;
     end;
 
     procedure t4thCPU.SetCompile;
@@ -119,7 +127,7 @@ uses
     procedure t4thCPU.GetIndent;
     begin
       Parsing;
-      if lastw = '' then error('End of line');
+      if lastw = '' then NotFound;
     end;
 
     procedure t4thCPU.NewItem;
@@ -133,7 +141,7 @@ uses
       err: word;
     begin
       val(LastW,n,err);
-      if err <> 0  then error('Not a number');
+      if err <> 0  then NotFound;
       dstk.Push(n);
     end;
 
@@ -142,7 +150,7 @@ uses
     begin
       GetIndent;
       dea := found;
-      if dea = 0 then error('Not such Host');
+      if dea = 0 then NotFound;
       dstk.Push(dea);
     end;
 
@@ -269,17 +277,13 @@ uses
       try
         assign(incfile,nam);
         reset(incfile);
-        //writeln(nam);
-        while not eof(incfile) do begin
-          flag := true;
+        while not eof(incfile) do begin   flag := true;
           readln(incfile,Ftib);
-          //writeln(Ftib);  readkey;
-          EvalStr;
-          flag := false;
+          EvalStr;                        flag := false;
         end;
       finally
         close(incfile);
-        if flag then writeln(nam + ' is closed');
+        if flag then BEGIN CR; write(nam + ' is closed'); END;
       end;
     end;
 
@@ -341,6 +345,18 @@ uses
     procedure t4thCPU.BRKComp;  begin strcomp('(BRK'); end;
     procedure t4thCPU.EscComp;  begin strcomp('(ESC;'); end;
 
+    procedure t4thCPU.REM;   begin  Ftib := '';  Fname:='';  end;
+    procedure t4thCPU.DoTWICE;  begin h.align; h.wcomp(pc+2); end;
+    procedure t4thCPU.DoBegin;   // MarkBack
+              begin  h.align; dstk.Push(pc); bwd := bwd + 1;    end;
+    procedure t4thCPU.DoCall;
+         begin  h.align; h.wcomp(MIN2); dstk.Push(pc);  Fwd := Fwd + 1; end;
+    procedure t4thCPU.DoUntil;  begin  ReleaseBackward(IFOp); end;
+    procedure t4thCPU.DoAgain;  begin  ReleaseBackward(jumpOp); end;
+    procedure t4thCPU.DoNextM;  begin  ReleaseBackward(IFmOp); end;
+    procedure t4thCPU.ToLabel;  begin  doBegin; dstk.pop; DoTick; end;
+
+
     procedure t4thCPU.BYE; begin HALT; end;
     procedure t4thCPU.Include; begin  GetIndent; IncludeText(lastw); end;
     procedure t4thCPU.page;  begin  clrScr; end;
@@ -351,7 +367,6 @@ uses
     PROCEDURE t4thCPU.GetHERE;    begin dstk.push(HERE); end;
     PROCEDURE t4thCPU.GetDICT;    begin dstk.push(DICT); end;
     PROCEDURE t4thCPU.CR;    begin d.cr; end;
-
 
 
 
@@ -367,6 +382,7 @@ uses
         AddNode(@GetHERE,'HERE');              AddNode(@GetDICT,'DICT');
         AddNode(@SetCompile,'>,');             AddNode(@COLON,':');
         AddNode(@EMIT,'EMIT');                 AddNode(@CR,'CR');
+        AddNode(@REM,'\');
       end;
 
       with fCompiler do begin
@@ -382,13 +398,57 @@ uses
         AddNode(@BRKComp,opNames[18]);         AddNode(@EscComp,opNames[19]);
 
         AddNode(@SetInterp,',<');              AddNode(@COLON,':');
-        //AddNode(@DoBegin,'BEGIN');             AddNode(@DoUntil,'UNTIL');
+        AddNode(@REM,'\');                     AddNode(@SEMICOLON,';');
+        AddNode(@ToLabel,'<''>');              AddNode(@doTWICE,'TWICE');
+        AddNode(@DoUntil,'UNTIL');
+
+        //AddNode(@DoBegin,'BEGIN');
         //AddNode(@DoIf,'IF');                   AddNode(@DoIfm,'IF-');
         //AddNode(@DoNextM,'NEXT-');             AddNode(@DoAhead,'AHEAD');
-        //AddNode(@DoTHEN,'THEN');
+        //AddNode(@DoTHEN,'THEN');          call
         //AddNode(@SEMICOLON,';');               AddNode(@SEMISEMI,';;');
       end;
 
+    end;
+
+    procedure t4thCPU.DoIf;
+    begin
+    end;
+
+    procedure t4thCPU.DoIfm;
+    begin
+    end;
+
+    procedure t4thCPU.DoAhead;
+    begin
+    end;
+
+    procedure t4thCPU.DoTHEN;  // ReleaseForward
+    var num: word;
+    begin
+      IF fWD = 0 THEN ERROR('No Forward Mark');
+      fWD := fWD - 1;
+      num := Fstk.pop;
+      if p.fetch(num-2) = min2 then begin
+         p.store(num-2,pc);
+         exit;
+      end;
+
+    end;
+
+    procedure t4thCPU.MarkForward(o: tOpCode);
+    begin
+      begin
+        h.align; h.wcomp(MIN2); Fstk.Push(pc);  Fwd := Fwd + 1; end;
+    end;
+
+    procedure t4thCPU.ReleaseBackward(o: tOpCode);
+    var num: word;
+    begin IF BWD = 0 THEN ERROR('No Backward Mark');
+      BWD := BWD - 1;
+      num := dstk.pop;
+      h.HasAligned(num-here-2);
+      h.PutRelAdr(ORD(o),num-here-2);
     end;
 
 

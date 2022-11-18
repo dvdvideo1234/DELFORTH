@@ -516,138 +516,138 @@ uses
 
     {t4thMemory}
 
-        {
-        ; (JUMP (; (IF (IF-   CONTROLS
-           mandatory on exit  -->   nibNum:= 0;
-        }
+    {
+    ; (JUMP (; (IF (IF-   CONTROLS
+       mandatory on exit  -->   nibNum:= 0;
+    }
 
-        procedure  t4thMemory.jump;
-        begin
-            //if p.nib = 0 then exit;
-            pc := pc + p.RelAdr;
+    procedure  t4thMemory.jump;
+    begin
+        //if p.nib = 0 then exit;
+        pc := pc + p.RelAdr;
+    end;
+
+    procedure  t4thMemory._if;
+    begin
+      if dstk.pop = 0 then jump;
+      p.nib:= 0;
+    end;
+
+    procedure  t4thMemory.ifm;
+    begin
+      dec(dstk.top);
+      if smallint(dstk.top) >= 0 then jump;
+      p.nib:= 0;
+    end;
+
+    procedure  t4thMemory.RET;    {escape codes 128}
+    var anum: smallint;
+    begin
+      with p do
+      if shift<> 0 then begin
+        anum := RelAdr;
+        anum := anum div 2;
+        if (anum+4) in [0..3] then doer(20 + anum) {execute Extended opcode}
+        else  begin
+          if anum <0  then  INC(anum,5);
+          dstk.Push(anum);
+          p.nib:= 0;  {-1019..1023}
+          exit;
         end;
+      end;
+      pc := rstk.pop;    {end return}
+    end;
 
-        procedure  t4thMemory._if;
-        begin
-          if dstk.pop = 0 then jump;
-          p.nib:= 0;
+  {
+  ; !R+ @R+ xR XA       TRANSFER
+  }
+    procedure  t4thMemory.rstp;
+    begin
+      p.store(rstk.top, dstk.pop);
+      inc(rstk.top,2)
+    end;
+
+    procedure  t4thMemory.rldp;
+    begin
+      dstk.Push(p.fetch(rstk.top));
+      inc(rstk.top,2)
+    end;
+
+    procedure  t4thMemory.xr;
+    var temp: word;
+    begin
+      temp := rstk.top;
+      rstk.top :=  dstk.top;
+      dstk.top := temp;
+    end;
+
+    procedure  t4thMemory.xa;
+    var temp: word;
+    begin
+      temp := rstk.top;
+      rstk.top := areg;
+      areg := temp;
+    end;
+
+  {
+   push pop J DUP      STACK
+  }
+    procedure  t4thMemory.push;
+    begin
+      rstk.Push(dstk.pop);
+    end;
+
+    procedure  t4thMemory.j;
+    begin
+      dstk.Push(rstk.next);
+    end;
+
+    procedure  t4thMemory.dup;
+    begin
+      dstk.Push(dstk.top);
+    end;
+
+    procedure  t4thMemory.pop;
+    begin
+      dstk.Push(rstk.pop);
+    end;
+
+  {
+  ; NAND +2/ +* -/      MATH & LOGIC
+  }
+    procedure  t4thMemory.nand;
+    begin
+      with dstk do top := not (pop and top);
+    end;
+
+    procedure  t4thMemory.add2div;
+    var res: word;
+    begin
+      with dstk do begin
+        res := avg(top, next);
+        inc(next,top);
+        top := res;
+      end;
+    end;
+
+   procedure  t4thMemory.PMul;
+   begin
+     with dstk do
+       if odd(next)
+         then rcRw(next,rcrw(top,incw(top,areg)))
+         else rcRw(next,rcrw(top));
+   end;
+
+    procedure  t4thMemory.SDiv;
+    begin
+      with dstk do begin
+        rclw(top,rclw(next));
+        if top >= areg then begin
+          dec(top,areg);
+          inc(next);
         end;
-
-        procedure  t4thMemory.ifm;
-        begin
-          dec(dstk.top);
-          if smallint(dstk.top) >= 0 then jump;
-          p.nib:= 0;
-        end;
-
-        procedure  t4thMemory.RET;    {escape codes 128}
-        var anum: smallint;
-        begin
-          with p do
-          if shift<> 0 then begin
-            anum := RelAdr;
-            anum := anum div 2;
-            if (anum+4) in [0..3] then doer(20 + anum) {execute Extended opcode}
-            else  begin
-              if anum <0  then  INC(anum,5);
-              dstk.Push(anum);
-              p.nib:= 0;  {-1019..1023}
-              exit;
-            end;
-          end;
-          pc := rstk.pop;    {end return}
-        end;
-
-      {
-      ; !R+ @R+ xR XA       TRANSFER
-      }
-        procedure  t4thMemory.rstp;
-        begin
-          p.store(rstk.top, dstk.pop);
-          inc(rstk.top,2)
-        end;
-
-        procedure  t4thMemory.rldp;
-        begin
-          dstk.Push(p.fetch(rstk.top));
-          inc(rstk.top,2)
-        end;
-
-        procedure  t4thMemory.xr;
-        var temp: word;
-        begin
-          temp := rstk.top;
-          rstk.top :=  dstk.top;
-          dstk.top := temp;
-        end;
-
-        procedure  t4thMemory.xa;
-        var temp: word;
-        begin
-          temp := rstk.top;
-          rstk.top := areg;
-          areg := temp;
-        end;
-
-      {
-       push pop J DUP      STACK
-      }
-        procedure  t4thMemory.push;
-        begin
-          rstk.Push(dstk.pop);
-        end;
-
-        procedure  t4thMemory.j;
-        begin
-          dstk.Push(rstk.next);
-        end;
-
-        procedure  t4thMemory.dup;
-        begin
-          dstk.Push(dstk.top);
-        end;
-
-        procedure  t4thMemory.pop;
-        begin
-          dstk.Push(rstk.pop);
-        end;
-
-      {
-      ; NAND +2/ +* -/      MATH & LOGIC
-      }
-        procedure  t4thMemory.nand;
-        begin
-          with dstk do top := not (pop and top);
-        end;
-
-        procedure  t4thMemory.add2div;
-        var res: word;
-        begin
-          with dstk do begin
-            res := avg(top, next);
-            inc(next,top);
-            top := res;
-          end;
-        end;
-
-       procedure  t4thMemory.PMul;
-       begin
-         with dstk do
-           if odd(next)
-             then rcRw(next,rcrw(top,incw(top,areg)))
-             else rcRw(next,rcrw(top));
-       end;
-
-        procedure  t4thMemory.SDiv;
-        begin
-          with dstk do begin
-            rclw(top,rclw(next));
-            if top >= areg then begin
-              dec(top,areg);
-              inc(next);
-            end;
-          end;
-        end;
+      end;
+    end;
 
     function  t4thMemory.dumpWord: shortstring;
     var  nibl: byte; where: smallint; nibname: str39;
@@ -878,6 +878,8 @@ uses
       lcolon := 0;
       fmemory := GetMem(memSize);
       fSize := memSize;
+      FILLCHAR(FMEMORY^, FSIZE, #0);
+
       d.SetPointer(fmemory);      p.SetPointer(fmemory);
       t.SetPointer(fmemory);      h.SetPointer(fmemory);
 

@@ -64,5 +64,5 @@
       strcomp(': KEY!  (# (BK (S1 (@ : KEY (BK (;');
 
 
-      strcomp(': TEST'); // for test := 15 downto 0 do h.PutNibble(test);
+      //strcomp(': TEST'); // for test := 15 downto 0 do h.PutNibble(test);
 

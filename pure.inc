@@ -1,11 +1,11 @@
 : (BR# @R+ XR (IF (; : (#| @R+ XR PUSH (; : (# @R+ ;    \ (DROP == (IF
 : (@& @R+ POP (IF : AND NAND DUP NAND ;
-: I& J  AND ; : SGN& (@& ,< $8000 ,
-: (-IF# DUP SGN& : (BR#? <'> (BR# UNTIL : SKIP @R+ (IF ; \ (IF (BR#
+: I& J  AND ; : ?SGN& DUP : SGN& (@& ,< $8000 ,
+: (-IF# ?SGN& : (BR#? <'> (BR# UNTIL : SKIP @R+ (IF ; \ (IF (BR#
 : (VAR3 @R+ @R+ NAND (IF : (VAR POP ;
 : IXEC J PUSH (; : EXECUTE PUSH (; : EX POP XR PUSH ;
 : |DROP EX : DROP (IF : NOP ;
-: 2-| (1- : 1-| (1- : XEP| XR EXECUTE POP ;
+: 2-| (IF- : 1-| (IF- : XEP| XR EXECUTE POP ;
 : TIMES PUSH XR : TIMES| PUSH AHEAD BEGIN  PUSH J
 EXECUTE THEN POP NEXT- : .EXIT POP : 2DROP NAND (IF ;
 : (@+ @R+ +2/  .EXIT ;
