@@ -33,7 +33,9 @@ type
     numx
     );
 
-type
+  tBaseOp =  jumpOp..nandOp;
+  tbaseSet= set of tBaseOp;
+
   pword = ^word;
   pstr  = ^shortstring;
   stkAry= array[byte] of word;
@@ -118,7 +120,7 @@ type
     procedure setstr(s: shortstring);
   end;}
 
-  TCompReg = object(TNibblesPointer)
+  TCompReg = object(TpcReg)
     flastColon: word;
     fbranchForward: word;
     fbranchBackward: word;
