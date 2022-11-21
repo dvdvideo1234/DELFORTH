@@ -14,8 +14,8 @@ EXECUTE THEN POP NEXT- : .EXIT POP : 2DROP NAND (IF ;
 : (FS XR PUSH J PUSH @R+ POP (IF EX AHEAD
 : (S1 @R+ (IF : (! THEN !R+  POP (IF ;
 : (DZ0 POP XR (; : (F1 @R+ (IF : (@ @R+ POP (IF ;
-: (DZ1 POP XR (@+ ,<  2 ,
-: (DZ2 POP XR (@+ ,<  4 ,
+: (DZ1 POP XR : 2+ (@+ ,<  2 ,
+: (DZ2 POP XR : 4+ (@+ ,<  4 ,
 : DEC (FS : 1- (IF- (; : NEG (IF- : NOT DUP NAND ;
 : INC (FS : 1+ (@+ ,<  1 ,
 : (?#+ DUP : (#+ @R+ AHEAD : (?#- DUP @R+
@@ -39,7 +39,7 @@ EXECUTE THEN POP NEXT- : .EXIT POP : 2DROP NAND (IF ;
 : U/ |DROP : UM/MOD A! 0 : (U/ TWICE -/ -/ -/ -/ -/ -/ -/ -/ ;
 : EMIT! (# (BE (S1 (@ : EMIT (BE  CALL 1+ (S1 THEN ,<  0 CONST CNTC
 : CR  13 EMIT  10 EMIT  0 TO  CNTC ;
-: KEY!  (# (BK (S1 (@ : KEY (BK (;
-
+: KEY!  (# (BK (S1 (@ : KEY (BK (;  ,<
+\ INCLUDE GAGA
 
 

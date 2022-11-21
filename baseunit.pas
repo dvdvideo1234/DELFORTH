@@ -40,6 +40,7 @@ type
   function  WordTohex(n: word): str7;
   function  divmod(var w: dword; d: dword): dword;
   function  Avg(a, b: Longint): Longint;
+  function  even(what: longint): longint;
 
   function  rcRw(var d: word; carry: boolean = false): boolean;
   function  rcLw(var d: word; carry: boolean = false): boolean;
@@ -55,6 +56,12 @@ implementation
   asm
      mov    [edx],al
      inc    dword ptr [edx]
+  end;
+
+  function even(what: longint): longint;assembler; nostackframe;
+  {$ifdef SYSTEMINLINE}inline;{$endif}
+  asm
+     and    al,$fe
   end;
 
   function  DigToChar(n: byte): char;  assembler; nostackframe;

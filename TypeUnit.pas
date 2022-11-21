@@ -125,10 +125,14 @@ type
     fbranchForward: word;
     fbranchBackward: word;
     procedure align;
-    function  HasAligned(ra: smallint): boolean;
+    function  CanPut(nb: byte; ra: smallint): boolean;
+    function  FindNibleIn(adrs: word; tbs: tbaseSet): byte;
+    //function  PreparedFor(ra: smallint): boolean;
     procedure wcomp(w: word);
     Procedure PutNibble(n: byte);
-    Procedure PutRelAdr({nibble}nb: byte; {destination}ra: smallint);
+    Procedure PutRel({nibble}nb: byte; {destination}ra: smallint);
+    Procedure PutNum({destination}ra: smallint);
+    Procedure PutAdrs(nb: byte; ra: smallint);
     procedure bcomp(b: byte);
     procedure PutString(s: shortstring);
   end;
@@ -235,31 +239,39 @@ uses
   {TCompReg}
   procedure TCompReg.align;
   begin
-    while nib <> 0 do
-      PutNibble(0);
+    //while nib <> 0 do  PutNibble(0);
+    NIB := 0;
   end;
 
-  function  TCompReg.HasAligned(ra: smallint): boolean;
-  var newnib: byte;  wnib: byte;
+  function  TCompReg.CanPut(nb: byte; ra: smallint): boolean;
+  var wnib: byte;  n: shortint absolute nb;
   begin
-    wnib := nib;
-    result := false;
-    if wnib = 0 then wnib := 4;
-    if ra <> 0 then begin
-      if (ra < -2048) or (ra > 2047)
-        then error(reRangeError);
-      if nib <> 0 then begin
-        newnib := 1;
-        while (ra < -wTest[newnib]) or (ra >= wTest[newnib]) do
-          inc(newnib);
-        inc(newnib);
-        if (newnib > wnib) then  begin
-          result :=  true;
-          align;
-        end;
-      end;
-    end;
+    if odd(ra)
+      then error(reInvalidOp);
+    if (ra < -wTest[3]) or (ra >= wTest[3])
+      then error(reRangeError);
+    if (n <= 0) then exit(false);
+    IF ((nb=1) and (ra=0)) then exit(TRUE);
+    wnib := 0;
+    repeat
+      inc(wnib);
+    until (ra >= -wTest[wnib]) and (ra < wTest[wnib]);
+    result := nb > wnib;
   end;
+
+  {function  TCompReg.PreparedFor(ra: smallint): boolean;
+  var newnib, wnib: byte;
+  begin
+    result := false;
+    if (nib = 0) then exit(false);
+    if (ra = 0) then exit(true);
+    newnib := FindNibleIn(ptr-2,[jumpOp]);
+    if (newnib < 2) or (nib < newnib)
+       then begin nib := 0; exit; end;
+    nib := newnib -1 ;
+    if self.RelAdr = 0 then begin nib := newnib; exit(true); end;
+    nib := 0;
+  end;}
 
   procedure TCompReg.bcomp(b: byte);
   begin
@@ -279,27 +291,55 @@ uses
     inc(ptr,2);
   end;
 
+  function  TCompReg.FindNibleIn(adrs: word; tbs: tbaseSet): byte;
+  var opw: word; op: tOpCode absolute opw;
+  begin
+    result:=0;
+    shift := fetch(adrs);
+    if not odd(shift) then exit;
+    dec(shift);
+    result :=  4;
+    repeat opw := getNibble;
+      if (op in tbs)  then exit;
+      dec(result);
+    until  result = 0;
+  end;
+
   Procedure TCompReg.PutNibble(n: byte);
   begin
     n := n and NibMask;
-    if (nib = 0) then nib := 4;
-    dec(nib);
-    last := last shl nibble;
-    if nib <> 0 then last := last or n
-    else if odd(n) then  begin
-      wcomp(succ(last)); last := n; nib := 3;
-    end else begin
-      last := last or n; wcomp(succ(last));
+    if (nib = 0) or ((nib = 1) and odd(n)) then begin
+      nib := 4;
+      wcomp(1);
     end;
+    dec(nib);
+    store(ptr-2,fetch(ptr-2) or (n shl (nib shl 2)));
   end;
 
-  Procedure TCompReg.PutRelAdr({nibble}nb: byte; {destination}ra: smallint);
+  Procedure TCompReg.PutAdrs(nb: byte; ra: smallint);
   begin
-    HasAligned(ra);
     PutNibble(nb);
-    while nib <> 0 do begin
-      PutNibble(ra shr ((nib-1) shl 2));
+    while nib <> 0 do
+          PutNibble(ra shr ((nib-1) shl 2));
+  end;
+
+  Procedure TCompReg.PutRel({nibble}nb: byte; {destination}ra: smallint);
+  begin
+    if not canPut(nib,ra) then begin
+      nib := 0;
+      dec(ra,2);
+      canPut(3,ra);
     end;
+    PutAdrs(nb,ra);
+  end;
+
+  Procedure TCompReg.PutNum({destination}ra: smallint);
+  begin
+    if ra <= 0 then dec(ra,5);
+    ra := ra shl 1 ;
+    IF nib=0 then begin  PutAdrs(ord(retOp),ra); exit; end;
+    if (not canPut(nib,ra)) then nib := 0;
+    PutAdrs(ord(retOp),ra);
   end;
 
   {TDictReg}
@@ -825,28 +865,25 @@ uses
 
           if fnd < nibNum then begin  // compile
             case tOpCode(fnd) of
-              retOp: h.PutRelAdr(4,0);
+              retOp: h.PutAdrs(4,0);
               jumpOp, ifOp, ifmOp: begin
                 s2 := cutstr(s3,' ');
                 if s2 <> '' then begin
                   num := t.tick(s2);
                   if num <> 0 then begin
-                    h.HasAligned(num-here-2);
-                    h.PutRelAdr(fnd,num-here-2);
+                    h.PutRel(fnd,num-here);
                   end else begin
                     num := strtonum(s2);
-                    h.PutRelAdr(fnd,num);
+                    h.PutAdrs(fnd,num);
                   end;
-                end else h.PutRelAdr(fnd,0);
+                end else h.PutRel(fnd,0);
               end
             else h.PutNibble(fnd);
             end;
           end else if tOpCode(fnd) = numx then begin
             s2 := cutstr(s3,' ');
             fnd := strtonum(s2);
-            if fnd <= 0 then dec(fnd,5);
-            fnd := fnd shl 1 ;
-            h.PutRelAdr(4,fnd);
+            h.PutnUM(fnd);
           end else begin
             num := 0;
             case tOpCode(fnd) of
@@ -862,11 +899,11 @@ uses
                 end;
             else begin  // TR0x, TR1x, BRKx, ESCx:
                 fnd := (fnd-20) * 2;
-                h.PutRelAdr(4,fnd);
+                h.PutAdrs(4,fnd);
                 num := 1;
               end;
             end;
-            if num = 0 then  h.PutRelAdr(fnd,0);
+            if num = 0 then  h.PutAdrs(fnd,0);
           end;
         end;
 
