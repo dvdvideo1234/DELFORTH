@@ -705,9 +705,9 @@ uses
           where := reladr;
           if where = 0 then begin
             case tOpCode(nibl) of
-            jumpOp: nibname := '(NOP';
+            jumpOp: nibname := '(>';
             //RetOp: ;
-            IfOP:  nibname := '(DROP';
+            IfOP:  nibname := '(.';
             IfmOp: nibname := '(1-';
             end;
           end else if tOpCode(nibl) <>  RetOp then begin  // branches
