@@ -68,6 +68,9 @@ type
     procedure NotFound;     procedure MarkForward(o: tOpCode);
     procedure ACCEPT;       procedure ReleaseBackward(o: tOpCode);
     procedure GetNumber;    procedure CompNum;
+    procedure MakeWord;
+    procedure DoAdd;
+    procedure DoSub;
 
 
       //procedure Eval(buf, len: word);   {text evaluator}
@@ -152,15 +155,7 @@ uses
     begin
       ftib := TrimLeft(ftib);
       lastw := cutstr(ftib,' ');
-    end;
-
-    procedure t4thCPU.Colon;
-    begin
-      GetIndent;
-      SetCompile;
-      h.align;
-      lcolon := here;
-      t.defWord(here, lastw);
+      //WRITE(LASTW,' '); IF (LASTW = ';') OR (LASTW = '(;') THEN CR;
     end;
 
     procedure t4thCPU.semisemi;
@@ -203,6 +198,7 @@ uses
           wcomp('(#');
           h.wcomp(w)
         end;
+      lcolon := HERE;
     end;
 
     {text evaluator
@@ -284,7 +280,7 @@ uses
 
     procedure t4thCPU.fSystem;
     begin
-      repeat CR; write('>>');        ACCEPT; WRITE(' ');
+      repeat CR; write('>> ');        ACCEPT; WRITE(' ');
         try
           evalStr; WRITE(' Ok');
         Except
@@ -299,7 +295,7 @@ uses
     procedure t4thCPU.EvalStr;  {text evaluator}
     begin
       repeat
-        Parsing; //WRITE(LASTW,' ');
+        Parsing;
         if lastw <> '' then SEARCH_EXEC;
       until lastw = '';
     end;
@@ -320,11 +316,21 @@ uses
       ftib[0]  := ch;
     end;
 
+    procedure t4thCPU.Colon;
+    begin
+      GetIndent;
+      SetCompile;
+      h.align;
+      lcolon := here;
+      t.defWord(here, lastw);
+    end;
+
     procedure t4thCPU.DoTHEN;  // ReleaseForward
     var opw, aptr: word;  num: smallint;
     begin
       with h do begin
         align;
+        lcolon := here;
         IF fWD = 0 THEN ERROR('No Forward Mark');
         fWD := fWD - 1;
         aptr := Fstk.pop-2;  // for call only
@@ -333,7 +339,7 @@ uses
         DEC(OPW);
         num :=  HERE - (aptr+2);
         if (num < -wTest[opw]) or (num >= wTest[opw])
-          then error('Can''t fix in '+wordtohex(aptr));
+          then error('Can''t fix at '+wordtohex(aptr));
         num := num and pred(wTest[OPW]);
         store(aptr,fetch(aptr) or num);
       end;
@@ -349,15 +355,12 @@ uses
         opw := h.fetch(aptr);
         if (aptr < lcolon) or (num <> 4)  or odd(opw)
           then  exit;  // no optimization is possible
-        //EXIT;
         HERE := aptr;
-        num := fetch(aptr-2);
-        if (aptr = lcolon) or (not (odd(num))) then begin
-          PutAdrs(ord(jumpOp),opw-here-2); // changing call with jump
-          EXIT;
-        end;
-        NIB := h.FindNibleIn(here-2,[jumpOp]);
+        DEC(APTR,2);
+        if (aptr >= lcolon) and odd(fetch(aptr))
+          then NIB := h.FindNibleIn(aptr,[jumpOp]);
         PutRel(ord(jumpOp),opw-here); // trying to insert jump
+        lcolon := here;
       end;
     end;
 
@@ -370,6 +373,7 @@ uses
       h.PutAdrs(ORD(o),0);
       Fstk.Push(here);
       Fwd := Fwd + 1;
+      lcolon := here;
     end;
 
     procedure t4thCPU.ReleaseBackward(o: tOpCode);
@@ -378,6 +382,7 @@ uses
       BWD := BWD - 1;
       num := dstk.pop;
       h.PutRel(ORD(o),num-here);
+      lcolon := here;
     end;
 
     procedure t4thCPU.DoCONST;
@@ -390,8 +395,19 @@ uses
       lcolon := here;
     end;
 
+    procedure t4thCPU.MakeWord;
+    begin
+      GetIndent;
+      h.align;
+      t.defWord(dstk.pop, lastw);
+    end;
+
     procedure t4thCPU.SetCompile; begin SEARCH_EXEC := @SEARCH_EXEC_COMP; end;
     PROCEDURE t4thCPU.INCL;  BEGIN INCLUDETEXT('TEST.INC'); END;
+    procedure t4thCPU.DoAdd; begin with dstk do push(pop+pop); end;
+    procedure t4thCPU.DoSub; var q: word; begin q := dstk.pop;
+      dstk.top:= dstk.top - q;
+    end;
 
     procedure t4thCPU.jumpComp;  begin h.PutAdrs(ORD(jumpOp),0); end;
     procedure t4thCPU.xrComp;   begin h.PutNibble(ORD(xrOp)); end;
@@ -461,6 +477,8 @@ uses
         AddNode(@EMIT,'EMIT');                 AddNode(@CR,'CR');
         AddNode(@REM,'\');                     AddNode(@INCL,'TEST');
         AddNode(@DoCONST,'CONST');             AddNode(@DoVALUE,'VALUE');
+        AddNode(@MakeWord,'=:');               AddNode(@DoaDD,'+');
+        AddNode(@dOsUB,'-');
       end;
 
       with fCompiler do begin

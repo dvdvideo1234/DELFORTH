@@ -259,20 +259,6 @@ uses
     result := nb > wnib;
   end;
 
-  {function  TCompReg.PreparedFor(ra: smallint): boolean;
-  var newnib, wnib: byte;
-  begin
-    result := false;
-    if (nib = 0) then exit(false);
-    if (ra = 0) then exit(true);
-    newnib := FindNibleIn(ptr-2,[jumpOp]);
-    if (newnib < 2) or (nib < newnib)
-       then begin nib := 0; exit; end;
-    nib := newnib -1 ;
-    if self.RelAdr = 0 then begin nib := newnib; exit(true); end;
-    nib := 0;
-  end;}
-
   procedure TCompReg.bcomp(b: byte);
   begin
     pbyte(mem[ptr])^ := b;
@@ -300,8 +286,7 @@ uses
     dec(shift);
     result :=  4;
     repeat op := tOpCode(getNibble);
-      //WRITELN('OPW=',ORD(OP));
-      //WRITELN(RESULT);
+      //WRITELN('OPW=',ORD(OP), ' ADRS=', adrs, ' RES=',RESULT); READKEY;
       if (op in tbs)  then exit;
       dec(result);
     until  result = 0;
@@ -327,7 +312,7 @@ uses
 
   Procedure TCompReg.PutRel({nibble}nb: byte; {destination}ra: smallint);
   begin
-    if not canPut(nib,ra) then begin
+    IF nib<>0 then if not canPut(nib,ra) then begin
       nib := 0;
       dec(ra,2);
       canPut(3,ra);
@@ -339,9 +324,7 @@ uses
   begin
     if ra <= 0 then dec(ra,5);
     ra := ra shl 1 ;
-    IF nib<>0 then begin
-      if (not canPut(nib,ra)) then nib := 0;
-    end;
+    IF nib<>0 then if (not canPut(nib,ra)) then nib := 0;
     PutAdrs(ord(retOp),ra);
   end;
 
@@ -789,6 +772,7 @@ uses
 
     procedure t4thMemory.comma;
     begin
+      H.align;
       h.wcomp(dstk.pop);
     end;
 
