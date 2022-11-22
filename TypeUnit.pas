@@ -33,7 +33,7 @@ type
     numx
     );
 
-  tBaseOp =  jumpOp..nandOp;
+  //tBaseOp =  jumpOp..nandOp;
   tbaseSet= set of tOpCode;
 
   pword = ^word;
@@ -299,8 +299,9 @@ uses
     if not odd(shift) then exit;
     dec(shift);
     result :=  4;
-    repeat op := tOpCode(getNibble); WRITELN('OPW=',ORD(OP));
-      WRITELN(RESULT);
+    repeat op := tOpCode(getNibble);
+      //WRITELN('OPW=',ORD(OP));
+      //WRITELN(RESULT);
       if (op in tbs)  then exit;
       dec(result);
     until  result = 0;
@@ -338,8 +339,9 @@ uses
   begin
     if ra <= 0 then dec(ra,5);
     ra := ra shl 1 ;
-    IF nib=0 then begin  PutAdrs(ord(retOp),ra); exit; end;
-    if (not canPut(nib,ra)) then nib := 0;
+    IF nib<>0 then begin
+      if (not canPut(nib,ra)) then nib := 0;
+    end;
     PutAdrs(ord(retOp),ra);
   end;
 

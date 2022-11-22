@@ -299,7 +299,7 @@ uses
     procedure t4thCPU.EvalStr;  {text evaluator}
     begin
       repeat
-        Parsing; WRITE(LASTW,' ');
+        Parsing; //WRITE(LASTW,' ');
         if lastw <> '' then SEARCH_EXEC;
       until lastw = '';
     end;
@@ -327,42 +327,36 @@ uses
         align;
         IF fWD = 0 THEN ERROR('No Forward Mark');
         fWD := fWD - 1;
-        aptr := Fstk.pop-2;    // for call only
+        aptr := Fstk.pop-2;  // for call only
         if fetch(aptr) = min2 then begin store(aptr,here); exit; end;
         opw := FindNibleIn(aptr, [jumpOp, ifOp, ifmOp]);
-        last:=d.fetch(aptr); ERROR('THEN');
-        WRITELN(LAST,' ',OPW,' '); READKEY;   HALT;
-
-        last:=d.fetch(aptr);
+        DEC(OPW);
         num :=  HERE - (aptr+2);
-        shift:= last;
-        nib:=4;
-        //repeat opw := getNibble;  WRITELN('REPEAT ');
-        //until (op in [jumpOp, ifOp, ifmOp]);
-        if (num < -wTest[nib]) or (num >= wTest[nib])
+        if (num < -wTest[opw]) or (num >= wTest[opw])
           then error('Can''t fix in '+wordtohex(aptr));
-        num := num and pred(wTest[nib] shl 1);
-        last := last or num;
-        store(aptr,last);
-        nib := 0;
+        num := num and pred(wTest[OPW]);
+        store(aptr,fetch(aptr) or num);
       end;
     end;
 
 
     procedure t4thCPU.semicolon;
     var opw, aptr: word;   num: smallint;
-    begin semisemi;  EXIT;
+    begin semisemi;
       WITH H DO BEGIN
         num := h.FindNibleIn(here-2,[retOp]);
         aptr:= here-4;
         opw := h.fetch(aptr);
         if (aptr < lcolon) or (num <> 4)  or odd(opw)
           then  exit;  // no optimization is possible
+        //EXIT;
         HERE := aptr;
         num := fetch(aptr-2);
         if (aptr = lcolon) or (not (odd(num))) then begin
           PutAdrs(ord(jumpOp),opw-here-2); // changing call with jump
+          EXIT;
         end;
+        NIB := h.FindNibleIn(here-2,[jumpOp]);
         PutRel(ord(jumpOp),opw-here); // trying to insert jump
       end;
     end;
@@ -370,7 +364,10 @@ uses
 
     procedure t4thCPU.MarkForward(o: tOpCode);
     begin
-      if not h.canPut(h.nib,6) then begin h.nib := 0; h.PutRel(ORD(o),0); end;
+      IF H.nib <> 0 then begin
+         if not h.canPut(h.nib,126) then h.nib := 0;
+      end;
+      h.PutAdrs(ORD(o),0);
       Fstk.Push(here);
       Fwd := Fwd + 1;
     end;
@@ -396,19 +393,19 @@ uses
     procedure t4thCPU.SetCompile; begin SEARCH_EXEC := @SEARCH_EXEC_COMP; end;
     PROCEDURE t4thCPU.INCL;  BEGIN INCLUDETEXT('TEST.INC'); END;
 
-    procedure t4thCPU.jumpComp;  begin h.PutRel(ORD(jumpOp),0); H.ALIGN; end;
+    procedure t4thCPU.jumpComp;  begin h.PutAdrs(ORD(jumpOp),0); end;
     procedure t4thCPU.xrComp;   begin h.PutNibble(ORD(xrOp)); end;
     procedure t4thCPU.pushComp; begin h.PutNibble(ORD(PUSHOp)); end;
     procedure t4thCPU.SDivComp; begin h.PutNibble(ORD(SDIVOp)); end;
-    procedure t4thCPU.retComp;   begin h.PutRel(ORD(RETOp),0); H.ALIGN; end;
+    procedure t4thCPU.retComp;   begin h.PutAdrs(ORD(RETOp),0);  end;
     procedure t4thCPU.xaComp;   begin h.PutNibble(ORD(xAOp)); end;
     procedure t4thCPU.popComp;  begin h.PutNibble(ORD(POPOp)); end;
     procedure t4thCPU.PMulComp; begin h.PutNibble(ORD(PMULOp)); end;
-    procedure t4thCPU.ifComp;    begin h.PutRel(ORD(IFOp),0);  H.ALIGN; end;
+    procedure t4thCPU.ifComp;    begin h.PutAdrs(ORD(IFOp),0);  end;
     procedure t4thCPU.DUPComp;  begin h.PutNibble(ORD(DUPOp)); end;
     procedure t4thCPU.rstpComp; begin h.PutNibble(ORD(rstpOp)); end;
     procedure t4thCPU.a2dComp;  begin h.PutNibble(ORD(A2DOp)); end;
-    procedure t4thCPU.ifmComp;   begin h.PutRel(ORD(IFMOp),0); H.ALIGN; end;
+    procedure t4thCPU.ifmComp;   begin h.PutAdrs(ORD(IFMOp),0); end;
     procedure t4thCPU.JComp;    begin h.PutNibble(ORD(jOp)); end;
     procedure t4thCPU.rldpComp; begin h.PutNibble(ORD(rldpOp)); end;
     procedure t4thCPU.nandComp; begin h.PutNibble(ORD(nandOp)); end;
@@ -452,6 +449,7 @@ uses
     procedure t4thCPU.InitBaseOperations;
     begin
       initCPU;
+
       with fHost do begin
         AddNode(@bye,'BYE');                   AddNode(@Include,'INCLUDE');
         AddNode(@HDOT,'H.');                   AddNode(@dot,'.');
@@ -479,15 +477,14 @@ uses
 
         AddNode(@SetInterp,',<');              AddNode(@COLON,':');
         AddNode(@REM,'\');                     AddNode(@SEMICOLON,';');
-        AddNode(@ToLabel,'<''>');              AddNode(@doTWICE,'TWICE');
+        AddNode(@ToLabel,'<''>');              AddNode(@SEMISEMI,';;');
         AddNode(@dOTo,'TO');                   AddNode(@dOAt,'AT');
-        AddNode(@DoUntil,'UNTIL');
 
-        AddNode(@DoBegin,'BEGIN');             AddNode(@DoCall,'CALL');
+        AddNode(@DoBegin,'BEGIN');             AddNode(@DoUntil,'UNTIL');
+        AddNode(@DoNextM,'NEXT-');             AddNode(@DoAGAIN,'AGAIN');
         AddNode(@DoIf,'IF');                   AddNode(@DoIfm,'IF-');
-        AddNode(@DoNextM,'NEXT-');             AddNode(@DoAhead,'AHEAD');
-        AddNode(@DoTHEN,'THEN');
-        AddNode(@SEMICOLON,';');               AddNode(@SEMISEMI,';;');
+        AddNode(@DoAhead,'AHEAD');             AddNode(@DoTHEN,'THEN');
+        AddNode(@DoCall,'CALL');               AddNode(@doTWICE,'TWICE');
       end;
     end;
 
