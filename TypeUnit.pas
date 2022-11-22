@@ -34,7 +34,7 @@ type
     );
 
   tBaseOp =  jumpOp..nandOp;
-  tbaseSet= set of tBaseOp;
+  tbaseSet= set of tOpCode;
 
   pword = ^word;
   pstr  = ^shortstring;
@@ -292,14 +292,15 @@ uses
   end;
 
   function  TCompReg.FindNibleIn(adrs: word; tbs: tbaseSet): byte;
-  var opw: word; op: tOpCode absolute opw;
+  var op: tOpCode ;
   begin
     result:=0;
     shift := fetch(adrs);
     if not odd(shift) then exit;
     dec(shift);
     result :=  4;
-    repeat opw := getNibble;
+    repeat op := tOpCode(getNibble); WRITELN('OPW=',ORD(OP));
+      WRITELN(RESULT);
       if (op in tbs)  then exit;
       dec(result);
     until  result = 0;
@@ -952,7 +953,7 @@ uses
       s.nameAdr  := t.alloc(64);
       s.strbuf   := t.alloc(256);}
 
-      {$include handComp.inc}
+      //{$include handComp.inc}
 
     end;
 

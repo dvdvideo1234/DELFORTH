@@ -299,7 +299,7 @@ uses
     procedure t4thCPU.EvalStr;  {text evaluator}
     begin
       repeat
-        Parsing;
+        Parsing; WRITE(LASTW,' ');
         if lastw <> '' then SEARCH_EXEC;
       until lastw = '';
     end;
@@ -321,7 +321,7 @@ uses
     end;
 
     procedure t4thCPU.DoTHEN;  // ReleaseForward
-    var opw, aptr: word; op: tOpCode absolute opw;  num: smallint;
+    var opw, aptr: word;  num: smallint;
     begin
       with h do begin
         align;
@@ -329,11 +329,16 @@ uses
         fWD := fWD - 1;
         aptr := Fstk.pop-2;    // for call only
         if fetch(aptr) = min2 then begin store(aptr,here); exit; end;
+        opw := FindNibleIn(aptr, [jumpOp, ifOp, ifmOp]);
+        last:=d.fetch(aptr); ERROR('THEN');
+        WRITELN(LAST,' ',OPW,' '); READKEY;   HALT;
+
         last:=d.fetch(aptr);
         num :=  HERE - (aptr+2);
         shift:= last;
         nib:=4;
-        repeat opw := getNibble; until (op in [jumpOp, ifOp, ifmOp]);
+        //repeat opw := getNibble;  WRITELN('REPEAT ');
+        //until (op in [jumpOp, ifOp, ifmOp]);
         if (num < -wTest[nib]) or (num >= wTest[nib])
           then error('Can''t fix in '+wordtohex(aptr));
         num := num and pred(wTest[nib] shl 1);
@@ -346,7 +351,7 @@ uses
 
     procedure t4thCPU.semicolon;
     var opw, aptr: word;   num: smallint;
-    begin semisemi;
+    begin semisemi;  EXIT;
       WITH H DO BEGIN
         num := h.FindNibleIn(here-2,[retOp]);
         aptr:= here-4;

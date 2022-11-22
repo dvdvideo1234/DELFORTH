@@ -60,7 +60,7 @@
       strcomp(': U/ |DROP : UM/MOD A! (NUM 0 : (U/ `(8/ -/ -/ -/ -/ -/ -/ -/ -/ (;');
 
       {BASE IO}
-      strcomp(': STDEMIT! (# (BE : EMIT! (S1 : EMIT@ (@ : EMIT (BE ');
+      strcomp(': STDEMT! (# (BE : EMIT! (S1 : EMIT@ (@ : EMIT (BE ');
       T.defWord(HERE+6,'CNTC');   strcomp('CNTC 1+ (S1 (@  (NOP');
       strcomp(': CR (NUM 13 EMIT (NUM 10 EMIT (NUM 0 (JMP -18');
       strcomp(': STDKEY!  (# (BK : KEY! (S1 : KEY@ (@ : KEY (BK (;');
