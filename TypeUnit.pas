@@ -286,7 +286,6 @@ uses
     dec(shift);
     result :=  4;
     repeat op := tOpCode(getNibble);
-      //WRITELN('OPW=',ORD(OP), ' ADRS=', adrs, ' RES=',RESULT); READKEY;
       if (op in tbs)  then exit;
       dec(result);
     until  result = 0;
@@ -312,7 +311,7 @@ uses
 
   Procedure TCompReg.PutRel({nibble}nb: byte; {destination}ra: smallint);
   begin
-    IF nib<>0 then if not canPut(nib,ra) then begin
+    if not canPut(nib,ra) then begin
       nib := 0;
       dec(ra,2);
       canPut(3,ra);
@@ -448,7 +447,6 @@ uses
   function  TpcReg.getNibble: byte;
   begin
     shift := shift shl nibble;
-    dec(nib);
     result := LongRec(shift).hi;
     LongRec(shift).hi := 0;
   end;
@@ -686,6 +684,7 @@ uses
       with d do
       repeat
         nibl := getNibble;
+        DEC(NIB);
         nibname := opnames[nibl];
         if (nibl and 3) = 0 then begin
           where := reladr;
@@ -823,6 +822,7 @@ uses
           rstk.push(pc); pc :=  p.last;  {nesting}
           exit;
         end;
+      DEC(P.nib);
       doer(p.getNibble); {unpack & execute opcode}
     end;
 

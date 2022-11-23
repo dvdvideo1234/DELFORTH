@@ -93,7 +93,7 @@ uses
     function t4thCPU.found: word;
     begin
       result := t.FindWord(t.ptr, lastw);
-      if result <> 0 then result := t.fetch(result);
+      //if result <> 0 then result := t.fetch(result);
     end;
 
     procedure t4thCPU.wcomp(st:  shortstring);
@@ -148,7 +148,7 @@ uses
       GetIndent;
       dea := found;
       if dea = 0 then NotFound;
-      dstk.Push(dea);
+      dstk.Push(t.fetch(DEA));
     end;
 
     procedure t4thCPU.Parsing;
@@ -182,7 +182,8 @@ uses
       if dea <> nil then begin
         dea^.Act; exit; end;
       w := found;
-      if w <> 0 then begin h.align; h.wcomp(w); exit; end;
+      if w <> 0 then begin h.align; h.wcomp(t.fetch(W)); exit; end;
+      //if result <> 0 then result := t.fetch(result);
       getNumber;
       compNum;
     end;
@@ -285,8 +286,7 @@ uses
           evalStr; WRITE(' Ok');
         Except
           on E: EInOutError do writeln('InOut '+E.Message);
-          on E: E4thError do fLineCnt := 0; //  writeln('E4thError');
-          //on e: reRunError do writeln('file not found');
+          on E: E4thError do fLineCnt := 0;
           else  writeln('Unhandled Error');
         end;
       until false;
@@ -368,7 +368,7 @@ uses
     procedure t4thCPU.MarkForward(o: tOpCode);
     begin
       IF H.nib <> 0 then begin
-         if not h.canPut(h.nib,126) then h.nib := 0;
+         if not h.canPut(h.nib,6) then h.nib := 0;
       end;
       h.PutAdrs(ORD(o),0);
       Fstk.Push(here);
@@ -377,11 +377,11 @@ uses
     end;
 
     procedure t4thCPU.ReleaseBackward(o: tOpCode);
-    var num: word;
+    var num, HPTR: word;
     begin IF BWD = 0 THEN ERROR('No Backward Mark');
       BWD := BWD - 1;
       num := dstk.pop;
-      h.PutRel(ORD(o),num-here);
+      h.PutRel(ORD(o),num-HERE);
       lcolon := here;
     end;
 
