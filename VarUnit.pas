@@ -48,7 +48,10 @@ type
     procedure DoIfm;        procedure DoNextM;      procedure DoAhead;
     procedure DoTHEN;       procedure DoTWICE;      procedure DoCall;
     procedure DoAgain;      procedure ToLabel;      procedure DoTo;
-    procedure DoAt;
+    procedure DoAt;         procedure DoFor;        procedure DoNext;
+    procedure DoRdrop;
+    procedure DoRskip;
+    procedure DoAlign;
 
     {INTERPRETTER STUFF}
     procedure BYE;          procedure Include;      procedure SEARCH_EXEC_INT;
@@ -367,9 +370,7 @@ uses
 
     procedure t4thCPU.MarkForward(o: tOpCode);
     begin
-      IF H.nib <> 0 then begin
-         if not h.canPut(h.nib,6) then h.nib := 0;
-      end;
+      IF H.nib <> 0 then if not h.canPut(h.nib,6) then h.nib := 0;
       h.PutAdrs(ORD(o),0);
       Fstk.Push(here);
       Fwd := Fwd + 1;
@@ -402,6 +403,11 @@ uses
       t.defWord(dstk.pop, lastw);
     end;
 
+    procedure t4thCPU.DoRskip; begin rldpComp; ifComp;  end;
+    procedure t4thCPU.DoAlign; begin HERE := HERE + ORD(ODD(HERE)); H.align; end;
+    procedure t4thCPU.DoRdrop; begin popComp; ifComp;  end;
+    procedure t4thCPU.DoFor; begin pushComp; DoAHEAD; DoBegin;  end;
+    procedure t4thCPU.DoNext; begin DoTHen; PopComp; DoNextm; end;
     procedure t4thCPU.SetCompile; begin SEARCH_EXEC := @SEARCH_EXEC_COMP; end;
     PROCEDURE t4thCPU.INCL;  BEGIN INCLUDETEXT('TEST.INC'); END;
     procedure t4thCPU.DoAdd; begin with dstk do push(pop+pop); end;
@@ -503,6 +509,9 @@ uses
         AddNode(@DoIf,'IF');                   AddNode(@DoIfm,'IF-');
         AddNode(@DoAhead,'AHEAD');             AddNode(@DoTHEN,'THEN');
         AddNode(@DoCall,'CALL');               AddNode(@doTWICE,'TWICE');
+        AddNode(@DoFor,'FOR');                 AddNode(@DoNext,'NEXT');
+        AddNode(@DoRdrop,'RDROP');             AddNode(@DoRskip,'RSKIP');
+        AddNode(@DoAlign,'ALIGN');
       end;
     end;
 
