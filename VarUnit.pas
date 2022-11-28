@@ -265,6 +265,7 @@ uses
 
     procedure t4thCPU.IncludeText(nam: shortstring);
     var incfile: text;   FLAG: boolean;  LineCnt: longint;
+      //LineCnt := 0; FileOpen(
     begin   LineCnt := 0;
       assign(incfile,nam);
       IF NOT FileExists(nam) then error('file not found');

@@ -699,7 +699,7 @@ uses
             wadr := t.FindW(ptr+where);
             if wadr <> 0
               then nibname := nibname + ' ' + pSearch(mem[wadr])^.s
-              else nibname := nibname + ' { ' + wordtohex(ptr+where)+'}';
+              else nibname := nibname + ' $' + wordtohex(ptr+where);
           end else begin
             where := where div 2;
             case where of
