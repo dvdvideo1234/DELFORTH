@@ -23,6 +23,8 @@ type
   pword = ^word;
   pbyte = ^byte;
 
+  function  strPack(s: shortstring): shortstring;
+  function  strUnPack(s: shortstring): shortstring;
   procedure putc(what: char; var where: pchar);
   function  ascPack(s, d: pchar; l: longint): longint;
   function  ascUnPack(s, d: pchar; l: longint): longint;
@@ -88,6 +90,22 @@ implementation
       end;
     end;
     result := d - oldd;
+  end;
+
+  function strPack(s: shortstring): shortstring;
+  var c: byte;
+  begin
+    c := ascPack(@s[1], @result[1], length(s));
+    result[0] := char(c);
+  end;
+
+  function strUnPack(s: shortstring): shortstring;
+  var RA: array[0..799] of char;
+    c: word;
+  begin
+    c := ascUnPack(@s[1], @RA[1], length(s));
+    ra[0] := char(c);
+    result := pstr(@RA)^;
   end;
 
   function ascUnPack(s, d: pchar; l: longint): longint;

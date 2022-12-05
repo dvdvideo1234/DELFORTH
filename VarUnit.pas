@@ -30,6 +30,7 @@ type
     fHost: tWordSearch;
     fCompiler: tWordSearch;
     fLineCnt: longint;
+    fLastCh: char;
 
     SEARCH_EXEC: TProcType;
     Fname:  shortstring;
@@ -133,13 +134,28 @@ uses
     procedure t4thCPU.NewItem;
     begin
       GetIndent;
-      if found <> 0 then warning('duplicates');
+      if found <> 0 then warning(' ');
     end;
 
     procedure t4thCPU.GetNumber;
     var n: LONGINT;
       err: word;
+      ch: char;
+      temp: shortstring;
     begin
+      //WRITELN(LASTW);
+      n :=  length(LASTW);
+      ch := LASTW[1];
+      err := 2;
+      if (ch <> '"') and (n>1) then inc(err, ord(lastw[2]='"'));
+      IF (LASTW[n] = '"') and (n>=err) and (ch in ['"', '.', '!', ','])
+        then temp := copy(lastw,err,n-err)
+        else ch := #0;
+      fLastCh := ch;
+      if ch <> #0 then begin
+        LASTW := strPack(temp);
+        exit;
+      end;
       val(LastW,n,err);
       if err <> 0  then NotFound;
       dstk.Push(n);
@@ -168,7 +184,7 @@ uses
     end;
 
     procedure t4thCPU.warning(msg: shortstring);
-    begin write('[',lastW,']',msg,' ');   end;
+    begin write('[/',lastW,'/]',msg);   end;
 
     procedure t4thCPU.SEARCH_EXEC_INT;
     var dea: pWordListNode;
@@ -322,7 +338,7 @@ uses
 
     procedure t4thCPU.Colon;
     begin
-      GetIndent;
+      NewItem;
       SetCompile;
       h.align;
       lcolon := here;
@@ -389,7 +405,7 @@ uses
 
     procedure t4thCPU.DoCONST;
     begin
-      GetIndent;
+      NewItem;
       h.align;
       t.defWord(here, lastw);
       wcomp('(@');
@@ -399,7 +415,7 @@ uses
 
     procedure t4thCPU.MakeWord;
     begin
-      GetIndent;
+      NewItem;
       h.align;
       t.defWord(dstk.pop, lastw);
     end;

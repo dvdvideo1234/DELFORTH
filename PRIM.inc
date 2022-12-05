@@ -13,7 +13,9 @@ $8000 =: SGNMSK#  2 =: TWO#  4 =: FOUR#  $FF00 =: HIMASK#
 : ?SGN& DUP : SGN& (@& SGNMSK#  : ?ODD DUP : ODD (@& ONE#
 : (BR# BEGIN @R+ XR (IF ;   : (-IF# ?SGN& : (BR#? UNTIL : SKIP RSKIP ;
 : (VAR2 @R+ @R+ NAND (IF    : (VAR POP ;
+: 3DROP?; DUP IF
 : |DROP EX                  : DROP (IF        : NOP ;    : 2DROP NAND DROP ;
+   THEN 2DROP .EXIT ;
 : A@ XA POP DUP PUSH XA (;  : STR| POP |DROP  PUSH TIMES| ;
 : STR PUSH @R+ AHEAD        : OVER PUSH DUP AHEAD
 : |SWAP EX : SWAP PUSH : XPOP THEN THEN XR POP ;
@@ -37,7 +39,7 @@ $8000 =: SGNMSK#  2 =: TWO#  4 =: FOUR#  $FF00 =: HIMASK#
 : INC (FS 1+ ;
 
 : CSTR |SWAP : C@+ ?1+ XEP| : C@ PUSH @R+ RDROP : W>B (@& ,<  255 ,
-: W>HB (@& ,<  ' HIMASK# , : !- 2-| : !I J : ! PUSH (! ;
+: W>HB (@& ,<  ' HIMASK# ,
 : STR- |SWAP : @- 2-| : @I J : @ PUSH (@ ;
 : C!+ ?1+ XEP| : C! PUSH W>B @I W>HB +2/ (IF  (! ;
 : STDEMT! (# (BE ,<
@@ -50,17 +52,17 @@ $8000 =: SGNMSK#  2 =: TWO#  4 =: FOUR#  $FF00 =: HIMASK#
 \ : CR  13 EMIT  10 EMIT  0  TO CNTC ;
 \ : U* |DROP : UM* A! 0 TWICE +* +* +* +*  +* +* +* +* ;
 \ : U/ |DROP : UM/MOD A! 0 : (U/ TWICE -/ -/ -/ -/ -/ -/ -/ -/ ;
-: (#| @R+ XR PUSH ;
-: !+ PUSH !R+ POP ;
-: IXEC J PUSH ;
-: (BK? (@ESC ,< ' TWO# ,
-: (ATXY (@ESC ,< 3 ,
-: (FOP (@ESC ,< 3 ,
-: (FCLS (@ESC ,< ' FOUR# ,
-: (FRD  (@ESC ,< 5 ,
-: (FWR  (@ESC ,< 6 ,
-: (FPOS (@ESC ,< 7 ,
-\ : (FMK  (@ESC ,< 8 ,
+\ : (#| @R+ XR PUSH ;
+\ : !+ PUSH !R+ POP ;
+\ : IXEC J PUSH ;
+\ : (BK? (@ESC ,< ' TWO# ,
+\ : (ATXY (@ESC ,< 3 ,
+\ : (FOP (@ESC ,< 3 ,
+\ : (FCLS (@ESC ,< ' FOUR# ,
+\ : (FRD  (@ESC ,< 5 ,
+\ : (FWR  (@ESC ,< 6 ,
+\ : (FPOS (@ESC ,< 7 ,
+\ \ : (FMK  (@ESC ,< 8 ,
 
 
 
