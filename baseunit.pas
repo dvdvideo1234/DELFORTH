@@ -30,7 +30,7 @@ type
   function  ascUnPack(s, d: pchar; l: longint): longint;
   function  strToNum(s: shortstring): longint;
   procedure stradd(var sd: shortstring; ss: shortstring; del: char = ' ');
-  function  cutStr(var s: shortstring; del: char): shortstring;
+  function  cutStr(var s: shortstring; del: char = ' '): shortstring;
   function  LongRel(inw, Mask: longint): longint;
   function  NToHex(n: dword; chars: byte): str15;
   function  LongToHex(n: dword): str15;
@@ -70,7 +70,7 @@ implementation
   label noInc;
   asm   // if n > 9 then inc(n, 7);   result := char(n+byte('0'));
      cmp   al,10
-     jl    noInc
+     jb    noInc
      add   al,7
   noInc:
      add   al,'0'
