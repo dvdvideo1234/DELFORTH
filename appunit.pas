@@ -5,7 +5,14 @@ unit AppUnit;
 interface
 
 uses
-  Classes, SysUtils;
+  Classes, SysUtils, BaseUnit;
+
+type tUrlStr = class(tObject)
+       fDate : str5;
+       fUrl  : string;
+       constructor create(dat, url: string);
+       destructor  destroy;
+     end;
 
   procedure ReadList(inf: tStringList; name: string);
   procedure WriteList(outf: tStringList; name: string);
@@ -15,8 +22,6 @@ uses
 
 implementation
 
-uses
-    BaseUnit;
 
   const months : array[0..11] of string = (
          'Jan'  ,'Feb'  ,'Mar'  ,'Apr'  ,'May'  ,'Jun'
@@ -40,6 +45,17 @@ uses
     result :=  -1;
   end;
 
+  constructor tUrlStr.create(dat, url: string);
+  begin
+    fdate := dat;
+    furl  := url;
+  end;
+
+  destructor tUrlStr.destroy;
+  begin
+    furl  := '';
+  end;
+
   procedure ReadList(inf: tStringList; name: string);
   begin
     inf.CaseSensitive:=true;
@@ -49,16 +65,21 @@ uses
   end;
 
   procedure WriteList(outf: tStringList; name: string);
-  var cnt: integer; s1, s2: string;
+  var cnt: integer; s1, s2: string;  url: tUrlStr;
   begin
-    for cnt := 0 to outf.Count-1 do
-      outf.Strings[cnt] := trim(outf.Strings[cnt]);
-    outf.Sort;
     cnt := 0;
     while cnt < outf.Count-2 do begin
       s1 := outf.Strings[cnt];
       s2 := outf.Strings[cnt+1];
       if s1 = s2 then outf.Delete(cnt) else inc(cnt);
+    end;
+    outf.Sorted:=false;   // !!!
+    for cnt := 0 to outf.Count-1 do begin
+      url := tUrlStr(outf.Objects[cnt]);
+      s2 := url.fUrl;
+      s1 := url.fDate;
+      url.fUrl:='';
+      outf.Strings[cnt] := outf.Strings[cnt]+'|'+s2+' '+s1;
     end;
     outf.SaveToFile(name);
   end;
@@ -74,8 +95,9 @@ uses
           s1 := inl.Strings[cnt];
           inc(cnt);
         until s1 <> '';
+        num := length(s1);
         targ := pos(' - YouTube',s1);
-        if targ + 10 > length(s1) then s1 := copy(s1,1,targ-1);
+        if (targ + 10 > num) and (num > 10) then s1 := copy(s1,1,targ-1);
         s2 := inl.Strings[cnt];  inc(cnt);
         s3 := inl.Strings[cnt];  inc(cnt);
         if s3 <> '' then dec(cnt);
@@ -96,7 +118,9 @@ uses
               if targ <> 0 then delete(s1,1,targ);
             end;
         end;
-        outl.Add(s1 + '/|' + s2+ ' ' + date);
+        s1 := trim(s1);
+        outl.AddObject(s1, tUrlStr.create(date, s2));
+        //outl.Add(s1 + '/|' + s2+ ' ' + date);
       end;
     end;
   end;
@@ -104,6 +128,8 @@ uses
 initialization
   slr := tStringList.Create;
   slw := tStringList.Create;
+  slw.CaseSensitive:=false;
+  slw.Sorted:=true;
 
 finalization
   slr.Destroy;
