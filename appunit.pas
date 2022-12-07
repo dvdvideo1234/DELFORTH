@@ -58,21 +58,13 @@ implementation
 
   procedure ReadList(inf: tStringList; name: string);
   begin
-    inf.CaseSensitive:=true;
     inf.Clear;
-    inf.Duplicates:=dupAccept;
     inf.LoadFromFile(name);
   end;
 
   procedure WriteList(outf: tStringList; name: string);
   var cnt: integer; s1, s2: string;  url: tUrlStr;
   begin
-    cnt := 0;
-    while cnt < outf.Count-2 do begin
-      s1 := outf.Strings[cnt];
-      s2 := outf.Strings[cnt+1];
-      if s1 = s2 then outf.Delete(cnt) else inc(cnt);
-    end;
     outf.Sorted:=false;   // !!!
     for cnt := 0 to outf.Count-1 do begin
       url := tUrlStr(outf.Objects[cnt]);
@@ -91,10 +83,7 @@ implementation
     cnt := 0;
     while cnt < inl.Count do begin
       if inl.Count - cnt >= 3 then begin
-        repeat
-          s1 := inl.Strings[cnt];
-          inc(cnt);
-        until s1 <> '';
+        repeat  s1 := inl.Strings[cnt]; inc(cnt); until s1 <> '';
         num := length(s1);
         targ := pos(' - YouTube',s1);
         if (targ + 10 > num) and (num > 10) then s1 := copy(s1,1,targ-1);
@@ -120,15 +109,19 @@ implementation
         end;
         s1 := trim(s1);
         outl.AddObject(s1, tUrlStr.create(date, s2));
-        //outl.Add(s1 + '/|' + s2+ ' ' + date);
       end;
     end;
   end;
 
 initialization
   slr := tStringList.Create;
+  slr.CaseSensitive:=true;
+  slr.Duplicates:=dupAccept;
+  slr.Sorted:=false;
+
   slw := tStringList.Create;
-  slw.CaseSensitive:=false;
+  slw.CaseSensitive:=true;
+  slw.Duplicates:=dupIgnore;
   slw.Sorted:=true;
 
 finalization
