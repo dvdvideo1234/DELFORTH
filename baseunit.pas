@@ -275,17 +275,45 @@ function  NToHex(n: dword; chars: byte): str15;
      xchg eax,edx
   end;
 
+  function  ClrBit(d: dword; bit: byte): dword; assembler; nostackframe;
+  asm
+    mov cl,dl
+    mov dl,1    // value of bit zero
+    and cl,31   // no more then 31 bit
+    shl edx,cl  // create mask to edx
+    mov ecx,edx // copy mask   to ecx
+    and ecx,eax // one bit isolate in ecx
+    xor eax,ecx // and zeroed in eax
+  end;
+
+  function  GetBit(d: dword; bit: byte): boolean; assembler; nostackframe;
+  label stayz;
+  asm
+    call ClrBit
+    mov al,0
+    jecxz stayz
+    inc  eax
+  stayz:
+  end;
+
+  function  SetBit(d: dword; bit: byte): dword; assembler; nostackframe;
+  asm
+    call ClrBit
+    or   eax,edx
+  end;
+
+  function  Pow2(Pow: byte): cardinal; assembler; nostackframe;
+  asm
+    xchg eax,edx
+    call ClrBit
+    xchg eax,edx
+  end;
+
   function  ROLD(d: dword; ind: byte): dword; assembler; nostackframe;
   label stayz;
   asm
-    and dl,31
-    mov cl,dl
-    mov dl,1
-    shl edx,cl
-    mov ecx,edx
-    and ecx,eax // one bit isolate
-    xor eax,ecx // and zeroed
-    dec edx    // mask
+    call ClrBit
+    dec edx     // 0..ind-1 mask
     and edx,eax
     xor eax,edx
     shl edx,1
@@ -295,56 +323,22 @@ function  NToHex(n: dword; chars: byte): str15;
     or  eax,edx
   end;
 
-{function  ROLD(d: dword; ind: byte): dword;
-label stayz;
-begin asm
-  xor edx,edx
-  inc edx
-  mov cl,ind
-  mov eax,d
-  and cl,31
-  shl edx,cl
-
-  mov ecx,edx
-  and ecx,eax // one bit isolate
-  xor eax,ecx // and zeroed
-
-  dec edx    // mask
-
-  and edx,eax
-  xor eax,edx
-  shl edx,1
-  jecxz stayz
-  inc  edx
-stayz:
-  or  eax,edx
-  mov Result,eax
-end; end;
-}
-  function  RORD(d: dword; ind: byte): dword;
+  function  RORD(d: dword; ind: byte): dword;  assembler; nostackframe;
   label stayz;
-  begin asm
-    xor edx,edx
-    inc edx
-    mov cl,ind
-    mov eax,d
-    and cl,31
-    shl edx,cl
-
-    mov ecx,edx  // one bit isolate
-
-    dec edx    // mask
-    or  edx,ecx
-
+  asm
+    call ClrBit
+    push edx
+    dec edx     // 0..ind-1 mask
     and edx,eax
     xor eax,edx
+    or  edx,ecx
+    pop ecx
     shr edx,1
     jnc stayz
     or  edx,ecx
   stayz:
     or  eax,edx
-    mov Result,eax
-  end; end;
+  end;
 
 end.
 
