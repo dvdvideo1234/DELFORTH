@@ -43,6 +43,12 @@ type
   function  divmod(var w: dword; d: dword): dword;
   function  Avg(a, b: Longint): Longint;
   function  even(what: longint): longint;
+  function  ClrBit(d: dword; bit: byte): dword;
+  function  GetBit(d: dword; bit: byte): boolean;
+  function  SetBit(d: dword; bit: byte): dword;
+  function  Pow2(Pow: byte): cardinal;
+  function  ROLD(d: dword; ind: byte): dword;
+  function  RORD(d: dword; ind: byte): dword;
 
   function  rcRw(var d: word; carry: boolean = false): boolean;
   function  rcLw(var d: word; carry: boolean = false): boolean;
@@ -56,7 +62,8 @@ implementation
   procedure putc(what: char; var where: pchar);assembler; nostackframe;
   {$ifdef SYSTEMINLINE}inline;{$endif}
   asm
-     mov    [edx],al
+     mov    ecx,[edx]
+     mov    [ecx],al
      inc    dword ptr [edx]
   end;
 
@@ -180,7 +187,7 @@ asm
     shr   edx,1
     shl   edx,1
     mov   ecx,edx
-    jcxz  nodec
+    jecxz  nodec
     dec   edx
     and   ecx,eax
 nodec:
@@ -241,13 +248,6 @@ end;
     result := pstr(i)^;
   end;
 
-function  NToHex(n: dword; chars: byte): str15;
-  begin
-    if (chars in [1..7])
-      then  result := NumberToStr(n or $80000000, chars, 16)
-      else  result := LongToHex(n);
-  end;
-
   function  byteToHex(n: byte): str3;
   begin
     result := digtochar(n shr 4) + digtochar(n and 15);
@@ -262,6 +262,13 @@ function  NToHex(n: dword; chars: byte): str15;
   begin
     result := WordToHex(LongRec(n).Hi) + WordToHex(LongRec(n).Lo);
   end;
+
+  function  NToHex(n: dword; chars: byte): str15;
+    begin
+      if (chars in [1..7])
+        then  result := NumberToStr(n or $80000000, chars, 16)
+        else  result := LongToHex(n);
+    end;
 
   function divmod(var w: dword; d: dword): dword; assembler; nostackframe;
   asm
