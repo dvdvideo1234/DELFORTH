@@ -14,6 +14,7 @@ begin
    //avg(12345,4321));
    //cpu.words;
   with cpu do begin
+    //TestAllOps;
     da := 16;
     //dumpWords((t.tick('TEST')-da) div 2); //writeln;
     //cpu.InitBaseOperations;

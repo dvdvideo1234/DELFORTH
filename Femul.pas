@@ -91,7 +91,7 @@ uses
 
   {
   ; (JUMP (; (IF (IF-   CONTROLS
-     mandatory on exit  -->   nibNum:= 0;
+     mandatory on exit  -->   p.nib:= 0;
   }
 
     procedure  t4thCPU.jump;
@@ -186,11 +186,9 @@ uses
   ; NAND +2/ +* -/      MATH & LOGIC
   }
     procedure  t4thCPU.nand;
-    var temp: word;
     begin
       with dstk do begin
-        temp := pop;
-        top := not (temp and top);
+        next := not (next and top);  pop;
       end;
     end;
 

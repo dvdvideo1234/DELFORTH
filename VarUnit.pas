@@ -2,9 +2,10 @@ unit VarUnit;
 
 interface
 uses
-  Classes, SysUtils
-  ,BaseUnit
-  ,TypeUnit;
+  Classes
+  , SysUtils
+  , BaseUnit
+  , TypeUnit;
 
 type
   nodeType = ( ntUndef, ntWord, ntPrimitive, ntConst, ntVar,
@@ -63,7 +64,7 @@ type
     procedure DoCONST;      procedure DoValue;
 
     {COMMON STUFF}
-    procedure NewItem;      procedure Parsing;
+    procedure NewItem;      function  Parsing: boolean;
     procedure fSystem;      procedure wcomp(st:  shortstring);
     procedure initCpu;      procedure error(msg: shortstring);
     function  found: word;  procedure warning(msg: shortstring);
@@ -127,8 +128,7 @@ uses
 
     procedure t4thCPU.GetIndent;
     begin
-      Parsing;
-      if lastw = '' then NotFound;
+      if not Parsing then NotFound;
     end;
 
     procedure t4thCPU.NewItem;
@@ -137,11 +137,11 @@ uses
       if found <> 0 then warning(' ');
     end;
 
+    {GetString and GetNumber}
     procedure t4thCPU.GetNumber;
     var n: LONGINT;
       err: word;
       ch: char;
-      temp: shortstring;
     begin
       //WRITELN(LASTW);
       n :=  length(LASTW);
@@ -149,13 +149,12 @@ uses
       err := 2;
       if (ch <> '"') and (n>1) then inc(err, ord(lastw[2]='"'));
       IF (LASTW[n] = '"') and (n>=err) and (ch in ['"', '.', '!', ','])
-        then temp := copy(lastw,err,n-err)
-        else ch := #0;
-      fLastCh := ch;
-      if ch <> #0 then begin
-        LASTW := strPack(temp);
-        exit;
-      end;
+        then begin  {GetString}
+          fLastCh := ch;
+          lastw := strPack(copy(lastw,err,n-err));
+          exit;
+        end;
+      fLastCh := #0; {GetNumber}
       val(LastW,n,err);
       if err <> 0  then NotFound;
       dstk.Push(n);
@@ -170,11 +169,12 @@ uses
       dstk.Push(t.fetch(DEA));
     end;
 
-    procedure t4thCPU.Parsing;
+    function t4thCPU.Parsing: boolean;
     begin
       ftib := TrimLeft(ftib);
       lastw := cutstr(ftib,' ');
       //WRITE(LASTW,' '); IF (LASTW = ';') OR (LASTW = '(;') THEN CR;
+      result := lastw <>  '';
     end;
 
     procedure t4thCPU.semisemi;
@@ -184,7 +184,7 @@ uses
     end;
 
     procedure t4thCPU.warning(msg: shortstring);
-    begin write('[/',lastW,'/]',msg);   end;
+    begin write('[',lastW,']',msg);   end;
 
     procedure t4thCPU.SEARCH_EXEC_INT;
     var dea: pWordListNode;
@@ -207,9 +207,11 @@ uses
       compNum;
     end;
 
+    {CompString and CompNum}
     procedure t4thCPU.CompNum;
     var W: integer;
     begin
+      if fLastCh = #0 then begin  {CompNum}
       w := dstk.pop;
       if (w >= -1019) and (w <= 1023)
         then h.Putnum(w)
@@ -218,24 +220,18 @@ uses
           wcomp('(#');
           h.wcomp(w)
         end;
+      end
+      else begin h.align;      {CompString}
+        case fLastCh of
+        '"': wcomp('("');
+        '.': wcomp('(".');
+        '!': wcomp('("!');
+        ',': wcomp('(",');
+        end;
+      end;
+
       lcolon := HERE;
     end;
-
-    {text evaluator
-    procedure t4thCPU.Eval(buf, len: word);
-    var oldLtib, oldEtib: word;
-    begin
-      oldltib := s.ltib;
-      oldetib := s.etib;
-      s.ltib    := -len;
-      s.etib    := buf + len;
-      repeat
-        Parsing;
-        if name <> '' then SEARCH_EXEC;
-      until name = '';
-      s.ltib := oldltib;
-      s.etib := oldetib;
-    end;}
 
     procedure t4thCPU.error(msg: shortstring);
     begin
@@ -314,10 +310,7 @@ uses
 
     procedure t4thCPU.EvalStr;  {text evaluator}
     begin
-      repeat
-        Parsing;
-        if lastw <> '' then SEARCH_EXEC;
-      until lastw = '';
+      while Parsing do  SEARCH_EXEC;
     end;
 
     procedure t4thCPU.ACCEPT;

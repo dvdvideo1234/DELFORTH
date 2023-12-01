@@ -3,7 +3,7 @@ unit TestOpUn;
 interface
 uses
    VarUnit
-  ,TypeUnit
+   , TypeUnit
    ;
 
   type

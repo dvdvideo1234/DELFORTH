@@ -9,25 +9,25 @@ uses
 
 const
   opNames : array[0..NibMask+9] of str5 = (
-    '(JMP',  'XR',   'PUSH', '-/',
-    '(;',    'XA',   'POP',  '+*',
-    '(IF',   'DUP',  '!R+',  '+2/',
-    '(IF-',  'J',    '@R+',  'NAND',
-    '(TR0;', '(TR1;','(BRK','(ESC;',
+    '(JMP',  'XA',   'PUSH', '-/',
+    '(;',    'J',    'POP',  '+*',
+    '(IF',   '!R+',  'XR',   '+2/',
+    '(IF-',  '@R+',  'DUP',  'NAND',
+    '(TR0;', '(TR1;','(BRK', '(ESC;',
     '(NOP',  '(DROP','(1-',  ':',
     '(NUM'
     );
 
 const
-  min2 = $fffe; {mask without little indian bit}
+  min2 = $fffe; {mask without little endian bit}
   //extendedOps = 8;
 
 type
   tOpCode = (
-    jumpOp,   xrOp,     pushOp,   SDivOp,
-    retOp,    xaOp,     popOp,    PMulOp,
-    ifOp,     DUPOp,    rstpOp,   a2dOp,
-    ifmOp,    JOp,      rldpOp,   nandOp,
+    jumpOp,   xaOp,     pushOp,   SDivOp,
+    retOp,    JOp,      popOp,    PMulOp,
+    ifOp,     rstpOp,   xrOp,     a2dOp,
+    ifmOp,    rldpOp,   DUPOp,    nandOp,
     TR0x,     TR1x,     BRKx,     ESCx,
     nopx,     dropx,    onemx,    colx,
     numx
@@ -56,6 +56,7 @@ type
     function  ShowTop3: shortstring;
   end;
 
+  {TODO FSIZE}
   tAbstractMemoryPointer = object
     private
       FMemory: Pointer;
@@ -65,6 +66,9 @@ type
     public
       property mem[index: word]: Pointer read getItem;
     end;
+
+ {TODO  TwordPointerUp}
+ {TODO  TwordPointerDown}
 
   TwordPointer = object(tAbstractMemoryPointer)
     ptr: word;
@@ -914,15 +918,14 @@ uses
       here := 16;   h.nib:= 0;       // h
 
       setlength( OpArr,26);
-
-      OpArr[ 0] := @jump;         OpArr[ 1] := @xr;
-      OpArr[ 2] := @push;         OpArr[ 3] := @SDiv;
-      OpArr[ 4] := @ret;          OpArr[ 5] := @xa;
-      OpArr[ 6] := @pop;          OpArr[ 7] := @PMul;
-      OpArr[ 8] := @_if;          OpArr[ 9] := @DUP;
-      OpArr[10] := @rstp;         OpArr[11] := @add2div;
-      OpArr[12] := @ifm;          OpArr[13] := @j;
-      OpArr[14] := @rldp;         OpArr[15] := @nand;
+      OpArr[00] := @jump;      OpArr[01] := @xa;
+      OpArr[02] := @push;      OpArr[03] := @SDiv;
+      OpArr[04] := @ret;       OpArr[05] := @j;
+      OpArr[06] := @pop;       OpArr[07] := @PMul;
+      OpArr[08] := @_if;       OpArr[09] := @rstp;
+      OpArr[10] := @xr;        OpArr[11] := @add2div;
+      OpArr[12] := @ifm;       OpArr[13] := @rldp;
+      OpArr[14] := @DUP;       OpArr[15] := @nand;
 
       {extended codes}
       OpArr[16] := @troff;        OpArr[17] := @tron;

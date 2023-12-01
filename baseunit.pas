@@ -23,15 +23,16 @@ type
   pword = ^word;
   pbyte = ^byte;
 
-  function  strPack(s: shortstring): shortstring;
-  function  strUnPack(s: shortstring): shortstring;
+  function  getc(var where: pchar): char;
   procedure putc(what: char; var where: pchar);
   function  ascPack(s, d: pchar; l: longint): longint;
   function  ascUnPack(s, d: pchar; l: longint): longint;
+  function  strPack(s: shortstring): shortstring;
+  function  strUnPack(s: shortstring): shortstring;
+
   function  strToNum(s: shortstring): longint;
   procedure stradd(var sd: shortstring; ss: shortstring; del: char = ' ');
   function  cutStr(var s: shortstring; del: char = ' '): shortstring;
-  function  LongRel(inw, Mask: longint): longint;
   function  NToHex(n: dword; chars: byte): str15;
   function  LongToHex(n: dword): str15;
   function  NumberToStr(n: longint; chars: byte = 14; base: byte = 10): str39;
@@ -40,6 +41,8 @@ type
   function  byteTobin(n: byte): str15;
   function  DigToChar(n: byte): char;
   function  WordTohex(n: word): str7;
+
+  function  LongRel(inw, Mask: longint): longint;
   function  divmod(var w: dword; d: dword): dword;
   function  Avg(a, b: Longint): Longint;
   function  even(what: longint): longint;
@@ -59,6 +62,15 @@ type
 implementation
 
   {$asmMode intel}
+  function getc(var where: pchar): char; assembler; nostackframe;
+  {$ifdef SYSTEMINLINE}inline;{$endif}
+  asm
+    mov    ecx,[eax]
+    mov    cl,[ecx]
+    inc    dword ptr [eax]
+    xchg   eax,ecx
+  end;
+
   procedure putc(what: char; var where: pchar);assembler; nostackframe;
   {$ifdef SYSTEMINLINE}inline;{$endif}
   asm
@@ -85,14 +97,14 @@ implementation
 
   function ascPack(s, d: pchar; l: longint): longint;
   var oldd: pchar; ch : char; c: byte absolute ch;
-    procedure getc; begin ch := s^; inc(s); dec(l); end;
+    procedure getc1; begin ch := getc(s); dec(l); end;
   begin  oldd := d;
-    while l > 0 do begin  getc;
+    while l > 0 do begin  getc1;
       case ch of
-        '"': if l > 0  then begin getc; putc(ch,d);  end;
-        '^': if l > 0  then begin getc; c := c and 31; putc(ch,d);; end;
+        '"': if l > 0  then begin getc1; putc(ch,d);  end;
+        '^': if l > 0  then begin getc1; c := c and 31; putc(ch,d); end;
         '~': if oldd <> d then  byte((d-1)^) := byte((d-1)^) xor $80;
-        '_': begin ch := ' '; putc(ch,d);; end;
+        '_': begin ch := ' '; putc(ch,d); end;
       else putc(ch,d);;
       end;
     end;
