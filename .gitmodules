@@ -1,0 +1,3 @@
+[submodule "CommonLaz"]
+	path = CommonLaz
+	url = git@github.com:dvdvideo1234/CommonLaz.git
