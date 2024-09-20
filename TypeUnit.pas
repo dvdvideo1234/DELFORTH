@@ -646,8 +646,12 @@ uses
   ; NAND +2/ +* -/      MATH & LOGIC
   }
     procedure  t4thMemory.nand;
+    var res: word;
     begin
-      with dstk do top := not (pop and top);
+      with dstk do begin
+          res := pop;
+          top := not (res and top);
+      end;
     end;
 
     procedure  t4thMemory.add2div;
